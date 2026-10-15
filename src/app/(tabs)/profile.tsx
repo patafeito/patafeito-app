@@ -1,0 +1,2 @@
+import { Text, StyleSheet } from 'react-native'; import { Screen } from '../../shared/ui/Screen'; import { colors } from '../../shared/theme/tokens';
+export default function ProfileScreen() { return <Screen><Text style={styles.title}>Seu perfil</Text><Text style={styles.copy}>Histórico, relatórios, notificações e configurações ficarão reunidos aqui.</Text></Screen> }; const styles = StyleSheet.create({ title: { color: colors.text, fontSize: 26, fontWeight: '800' }, copy: { color: colors.textMuted, fontSize: 16, lineHeight: 24 } });

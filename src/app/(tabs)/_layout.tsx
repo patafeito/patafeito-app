@@ -1,0 +1,3 @@
+import { Tabs } from 'expo-router';
+import { colors } from '../../shared/theme/tokens';
+export default function TabsLayout() { return <Tabs screenOptions={{ headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border }, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.textMuted }}><Tabs.Screen name="index" options={{ title: 'Início' }} /><Tabs.Screen name="tasks" options={{ title: 'Tarefas' }} /><Tabs.Screen name="pet" options={{ title: 'Pet' }} /><Tabs.Screen name="focus" options={{ title: 'Foco' }} /><Tabs.Screen name="profile" options={{ title: 'Perfil' }} /></Tabs>; }
