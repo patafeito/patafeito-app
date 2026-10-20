@@ -1,0 +1,84 @@
+import { getDatabase } from '../../../db/client';
+import type { QueuedOperation, SyncChange, SyncOperationType } from '../domain/types';
+
+const cursorKey = 'sync.cursor';
+
+export async function enqueueOperation(type: SyncOperationType, payload: Record<string, unknown>, options?: { resourceId?: string; baseVersion?: number }) {
+  const database = await getDatabase();
+  const opId = crypto.randomUUID();
+  await database.runAsync(
+    'INSERT INTO sync_queue (op_id, operation_type, resource_id, base_version, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    opId, type, options?.resourceId ?? null, options?.baseVersion ?? null, JSON.stringify(payload), Date.now(),
+  );
+  return opId;
+}
+
+export async function pendingOperations(limit = 50): Promise<QueuedOperation[]> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<{ op_id: string; operation_type: SyncOperationType; resource_id: string | null; base_version: number | null; payload: string; attempts: number }>(
+    "SELECT op_id, operation_type, resource_id, base_version, payload, attempts FROM sync_queue WHERE state = 'pending' AND next_attempt_at <= ? ORDER BY created_at LIMIT ?", Date.now(), limit,
+  );
+  return rows.map((row) => ({ opId: row.op_id, type: row.operation_type, resourceId: row.resource_id ?? undefined, baseVersion: row.base_version ?? undefined, payload: JSON.parse(row.payload) as Record<string, unknown>, attempts: row.attempts }));
+}
+
+export async function removeOperation(opId: string) {
+  const database = await getDatabase();
+  await database.runAsync('DELETE FROM sync_queue WHERE op_id = ?', opId);
+}
+
+export async function deferOperation(operation: QueuedOperation, error: string) {
+  const database = await getDatabase();
+  const attempts = operation.attempts + 1;
+  const delay = Math.min(1_000 * 2 ** attempts, 60 * 60 * 1_000);
+  await database.runAsync('UPDATE sync_queue SET attempts = ?, next_attempt_at = ?, conflict_data = ? WHERE op_id = ?', attempts, Date.now() + delay, error, operation.opId);
+}
+
+export async function markOperation(operation: QueuedOperation, state: 'conflict' | 'rejected', data: unknown) {
+  const database = await getDatabase();
+  await database.runAsync('UPDATE sync_queue SET state = ?, conflict_data = ? WHERE op_id = ?', state, JSON.stringify(data), operation.opId);
+}
+
+export async function listConflicts() {
+  const database = await getDatabase();
+  return database.getAllAsync<{ op_id: string; operation_type: SyncOperationType; resource_id: string | null; conflict_data: string }>("SELECT op_id, operation_type, resource_id, conflict_data FROM sync_queue WHERE state = 'conflict' ORDER BY created_at");
+}
+
+export async function getCursor() {
+  const database = await getDatabase();
+  const row = await database.getFirstAsync<{ value: string }>('SELECT value FROM sync_state WHERE key = ?', cursorKey);
+  return row?.value;
+}
+
+export async function applyChanges(changes: SyncChange[], cursor: string) {
+  const database = await getDatabase();
+  await database.withTransactionAsync(async () => {
+    for (const change of changes) {
+      if (change.entityType === 'task') {
+        if (change.changeType === 'delete') {
+          await database.runAsync("UPDATE local_tasks SET deleted_at = ?, sync_state = 'synced' WHERE id = ?", String(change.data.deletedAt ?? new Date().toISOString()), change.entityId);
+        } else {
+          const task = change.data;
+          await database.runAsync(`INSERT INTO local_tasks (id, title, description, difficulty, status, due_at, completed_at, version, updated_at, deleted_at, sync_state)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')
+            ON CONFLICT(id) DO UPDATE SET title = excluded.title, description = excluded.description, difficulty = excluded.difficulty, status = excluded.status, due_at = excluded.due_at, completed_at = excluded.completed_at, version = excluded.version, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, sync_state = 'synced'`,
+          String(task.id), String(task.title), task.description == null ? null : String(task.description), String(task.difficulty), String(task.status), task.dueAt == null ? null : String(task.dueAt), task.completedAt == null ? null : String(task.completedAt), Number(task.version), String(task.updatedAt ?? new Date().toISOString()), task.deletedAt == null ? null : String(task.deletedAt));
+        }
+      } else {
+        const table = change.entityType === 'pet' ? 'local_pets' : change.entityType === 'inventory' ? 'local_inventory' : 'local_notifications';
+        await database.runAsync(`INSERT INTO ${table} (id, payload, version) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, version = excluded.version`, change.entityId, JSON.stringify(change.data), change.version);
+      }
+    }
+    await database.runAsync('INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', cursorKey, cursor);
+  });
+}
+
+export async function replaceLocalTaskId(localId: string, task: Record<string, unknown>) {
+  const database = await getDatabase();
+  await database.withTransactionAsync(async () => {
+    await database.runAsync('DELETE FROM local_tasks WHERE id = ?', localId);
+    await database.runAsync(`INSERT INTO local_tasks (id, title, description, difficulty, status, due_at, completed_at, version, updated_at, deleted_at, sync_state)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
+    String(task.id), String(task.title), task.description == null ? null : String(task.description), String(task.difficulty), String(task.status), task.dueAt == null ? null : String(task.dueAt), task.completedAt == null ? null : String(task.completedAt), Number(task.version), String(task.updatedAt ?? new Date().toISOString()), task.deletedAt == null ? null : String(task.deletedAt));
+    await database.runAsync('UPDATE sync_queue SET resource_id = ? WHERE resource_id = ?', String(task.id), localId);
+  });
+}
