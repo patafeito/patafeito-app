@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@react-native-vector-icons/ionicons/static';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { colors, radius } from '../theme/tokens';
 
 type IconButtonProps = {

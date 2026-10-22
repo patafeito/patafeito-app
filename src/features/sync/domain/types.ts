@@ -1,4 +1,4 @@
-export type SyncOperationType = 'task.create' | 'task.update' | 'task.delete' | 'notification.read' | 'inventory.equip';
+export type SyncOperationType = 'task.create' | 'task.update' | 'task.delete' | 'task.complete' | 'task.reopen' | 'notification.read' | 'inventory.equip' | 'focus.complete';
 export type SyncQueueState = 'pending' | 'conflict' | 'rejected';
 export type SyncResultStatus = 'applied' | 'duplicate' | 'conflict' | 'rejected';
 

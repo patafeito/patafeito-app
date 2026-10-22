@@ -1,18 +1,45 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { Task } from '../../features/tasks/domain/task';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
+import { difficultyLabel, isOverdue, type Task } from '../../features/tasks/domain/task';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 import { Badge } from './Badge';
 
 type TaskItemProps = { task: Task; onPress?: (task: Task) => void };
 
-const difficultyLabel = { easy: 'Fácil', medium: 'Média', hard: 'Difícil' } as const;
 const difficultyTone = { easy: 'success', medium: 'experience', hard: 'danger' } as const;
+
+function dueLabel(dueAt: string) {
+  const due = new Date(dueAt);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (due.toDateString() === today.toDateString()) return 'Hoje';
+  if (due.toDateString() === tomorrow.toDateString()) return 'Amanhã';
+  return due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
 
 export function TaskItem({ task, onPress }: TaskItemProps) {
   const completed = task.status === 'completed';
-  return <Pressable disabled={!onPress} onPress={() => onPress?.(task)} style={({ pressed }) => [styles.item, completed && styles.completed, pressed && onPress && styles.pressed]}>
-    <View style={[styles.check, completed && styles.checkCompleted]}><Text style={styles.checkLabel}>{completed ? '✓' : ''}</Text></View>
-    <View style={styles.content}><Text numberOfLines={1} style={[styles.title, completed && styles.completedTitle]}>{task.title}</Text><Badge tone={difficultyTone[task.difficulty]}>{difficultyLabel[task.difficulty]}</Badge></View>
+  const overdue = isOverdue(task);
+  return <Pressable
+    accessibilityRole={onPress ? 'button' : undefined}
+    accessibilityLabel={completed ? `${task.title}, concluída` : task.title}
+    accessibilityHint={onPress ? (completed ? 'Toque para desmarcar.' : 'Toque para concluir.') : undefined}
+    disabled={!onPress}
+    onPress={() => onPress?.(task)}
+    style={({ pressed }) => [styles.item, completed && styles.completed, pressed && onPress && styles.pressed]}
+  >
+    <View style={[styles.check, completed && styles.checkCompleted]}>
+      {completed ? <Ionicons name="checkmark" size={15} color={colors.background} /> : null}
+    </View>
+    <View style={styles.content}>
+      <Text numberOfLines={2} style={[styles.title, completed && styles.completedTitle]}>{task.title}</Text>
+      <View style={styles.badges}>
+        <Badge tone={difficultyTone[task.difficulty]}>{difficultyLabel[task.difficulty]}</Badge>
+        {task.dueAt ? <Badge tone={overdue ? 'danger' : 'neutral'}>{overdue ? `Venceu ${dueLabel(task.dueAt)}` : dueLabel(task.dueAt)}</Badge> : null}
+        {task.pendingXp ? <Badge tone="experience">+{task.pendingXp} XP a confirmar</Badge> : null}
+      </View>
+    </View>
   </Pressable>;
 }
 
@@ -22,8 +49,8 @@ const styles = StyleSheet.create({
   completed: { opacity: 0.65 },
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   checkCompleted: { backgroundColor: colors.success, borderColor: colors.success },
-  checkLabel: { ...typography.label, color: colors.background, fontSize: 13 },
   content: { flex: 1, gap: spacing.xs },
   title: { ...typography.body, color: colors.text, fontSize: 16 },
   completedTitle: { textDecorationLine: 'line-through' },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
 });

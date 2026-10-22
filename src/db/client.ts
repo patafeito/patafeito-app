@@ -1,38 +1,28 @@
 import * as SQLite from 'expo-sqlite';
+import { migrate } from './migrations';
 
+const databaseName = 'patafeito.db';
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
 
 export async function getDatabase() {
-  databasePromise ??= SQLite.openDatabaseAsync('patafeito.db').then(async (database) => {
-    await database.execAsync(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA foreign_keys = ON;
-      CREATE TABLE IF NOT EXISTS local_tasks (
-        id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, description TEXT,
-        difficulty TEXT NOT NULL, status TEXT NOT NULL, due_at TEXT,
-        completed_at TEXT, version INTEGER NOT NULL, updated_at TEXT NOT NULL,
-        deleted_at TEXT, sync_state TEXT NOT NULL DEFAULT 'synced'
-      );
-      CREATE TABLE IF NOT EXISTS local_pets (
-        id TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL, version INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS local_inventory (
-        id TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL, version TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS local_notifications (
-        id TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL, version TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS sync_queue (
-        op_id TEXT PRIMARY KEY NOT NULL, operation_type TEXT NOT NULL,
-        resource_id TEXT, base_version INTEGER, payload TEXT NOT NULL,
-        state TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
-        next_attempt_at INTEGER NOT NULL DEFAULT 0, conflict_data TEXT,
-        created_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS sync_queue_pending_idx ON sync_queue(state, next_attempt_at, created_at);
-      CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
-    `);
+  databasePromise ??= SQLite.openDatabaseAsync(databaseName).then(async (database) => {
+    await database.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+    await migrate(database);
     return database;
   });
   return databasePromise;
+}
+
+export async function resetDatabase() {
+  const database = await getDatabase();
+  await database.execAsync(`
+    DELETE FROM local_tasks;
+    DELETE FROM local_pets;
+    DELETE FROM local_inventory;
+    DELETE FROM local_notifications;
+    DELETE FROM local_focus_sessions;
+    DELETE FROM local_profile;
+    DELETE FROM sync_queue;
+    DELETE FROM sync_state;
+  `);
 }

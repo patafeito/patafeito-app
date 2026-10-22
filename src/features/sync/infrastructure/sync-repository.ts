@@ -1,11 +1,12 @@
 import { getDatabase } from '../../../db/client';
+import { newId } from '../../../shared/utils/identifier';
 import type { QueuedOperation, SyncChange, SyncOperationType } from '../domain/types';
 
 const cursorKey = 'sync.cursor';
 
 export async function enqueueOperation(type: SyncOperationType, payload: Record<string, unknown>, options?: { resourceId?: string; baseVersion?: number }) {
   const database = await getDatabase();
-  const opId = crypto.randomUUID();
+  const opId = newId();
   await database.runAsync(
     'INSERT INTO sync_queue (op_id, operation_type, resource_id, base_version, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     opId, type, options?.resourceId ?? null, options?.baseVersion ?? null, JSON.stringify(payload), Date.now(),
@@ -24,6 +25,14 @@ export async function pendingOperations(limit = 50): Promise<QueuedOperation[]> 
 export async function removeOperation(opId: string) {
   const database = await getDatabase();
   await database.runAsync('DELETE FROM sync_queue WHERE op_id = ?', opId);
+}
+
+export async function discardPendingOperation(type: SyncOperationType, resourceId: string) {
+  const database = await getDatabase();
+  const result = await database.runAsync(
+    "DELETE FROM sync_queue WHERE state = 'pending' AND operation_type = ? AND resource_id = ?", type, resourceId,
+  );
+  return result.changes > 0;
 }
 
 export async function deferOperation(operation: QueuedOperation, error: string) {
@@ -72,13 +81,31 @@ export async function applyChanges(changes: SyncChange[], cursor: string) {
   });
 }
 
-export async function replaceLocalTaskId(localId: string, task: Record<string, unknown>) {
+export async function markTaskSynced(taskId: string) {
   const database = await getDatabase();
-  await database.withTransactionAsync(async () => {
-    await database.runAsync('DELETE FROM local_tasks WHERE id = ?', localId);
-    await database.runAsync(`INSERT INTO local_tasks (id, title, description, difficulty, status, due_at, completed_at, version, updated_at, deleted_at, sync_state)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
-    String(task.id), String(task.title), task.description == null ? null : String(task.description), String(task.difficulty), String(task.status), task.dueAt == null ? null : String(task.dueAt), task.completedAt == null ? null : String(task.completedAt), Number(task.version), String(task.updatedAt ?? new Date().toISOString()), task.deletedAt == null ? null : String(task.deletedAt));
-    await database.runAsync('UPDATE sync_queue SET resource_id = ? WHERE resource_id = ?', String(task.id), localId);
-  });
+  await database.runAsync("UPDATE local_tasks SET pending_xp = NULL, pending_coins = NULL, sync_state = 'synced' WHERE id = ?", taskId);
+}
+
+export async function restoreTaskCompletion(taskId: string) {
+  const database = await getDatabase();
+  await database.runAsync(
+    "UPDATE local_tasks SET status = 'completed', completed_at = COALESCE(completed_at, ?), sync_state = 'synced' WHERE id = ?",
+    new Date().toISOString(), taskId,
+  );
+}
+
+export async function revertTaskCompletion(taskId: string) {
+  const database = await getDatabase();
+  await database.runAsync("UPDATE local_tasks SET status = 'pending', completed_at = NULL, pending_xp = NULL, pending_coins = NULL, sync_state = 'synced' WHERE id = ?", taskId);
+}
+
+export async function markFocusSessionSynced(sessionId: string, synced: boolean) {
+  const database = await getDatabase();
+  await database.runAsync('UPDATE local_focus_sessions SET sync_state = ? WHERE id = ?', synced ? 'synced' : 'rejected', sessionId);
+}
+
+export async function pendingOperationCount() {
+  const database = await getDatabase();
+  const row = await database.getFirstAsync<{ total: number }>("SELECT count(*) AS total FROM sync_queue WHERE state = 'pending'");
+  return row?.total ?? 0;
 }
