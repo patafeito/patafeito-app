@@ -103,15 +103,30 @@ export async function completeLocalTask(task: Task) {
   return reward;
 }
 
-export async function reopenLocalTask(task: Task) {
+async function markLocalPending(taskId: string, syncState: 'synced' | 'pending', version?: number) {
   const database = await getDatabase();
-  const cancelled = await discardPendingOperation('task.complete', task.id);
   await database.runAsync(
-    "UPDATE local_tasks SET status = 'pending', completed_at = NULL, pending_xp = NULL, pending_coins = NULL, updated_at = ?, sync_state = ? WHERE id = ?",
-    new Date().toISOString(), cancelled ? 'synced' : 'pending', task.id,
+    "UPDATE local_tasks SET status = 'pending', completed_at = NULL, pending_xp = NULL, pending_coins = NULL, updated_at = ?, sync_state = ?, version = COALESCE(?, version) WHERE id = ?",
+    new Date().toISOString(), syncState, version ?? null, taskId,
   );
-  if (!cancelled) await enqueueOperation('task.reopen', {}, { resourceId: task.id });
-  return { cancelled };
+}
+
+/** Se a conclusão ainda está na fila, desmarcar só a cancela: nada chegou ao servidor. */
+export async function cancelPendingCompletion(task: Task) {
+  const cancelled = await discardPendingOperation('task.complete', task.id);
+  if (cancelled) await markLocalPending(task.id, 'synced');
+  return cancelled;
+}
+
+/** O servidor já desmarcou e estornou: a cópia local acompanha a versão dele. */
+export async function applyServerReopen(taskId: string, version: number) {
+  await markLocalPending(taskId, 'synced', version);
+}
+
+/** Sem conexão: desmarca no aparelho e deixa o estorno para a sincronização. */
+export async function queueLocalReopen(task: Task) {
+  await markLocalPending(task.id, 'pending');
+  await enqueueOperation('task.reopen', {}, { resourceId: task.id });
 }
 
 export async function deleteLocalTask(task: Task) {

@@ -36,8 +36,13 @@ export function isForToday(task: Task, now = new Date()) {
   return due.getFullYear() === now.getFullYear() && due.getMonth() === now.getMonth() && due.getDate() === now.getDate();
 }
 
-export function currentStreak(completionDates: string[], now = new Date()): number {
+/** `protectedDates` (AAAA-MM-DD locais, do escudo da sequência) contam como dias com tarefa. */
+export function currentStreak(completionDates: string[], now = new Date(), protectedDates: string[] = []): number {
   const days = new Set(completionDates.map((value) => new Date(value).toDateString()));
+  for (const date of protectedDates) {
+    const [year, month, day] = date.split('-').map(Number);
+    days.add(new Date(year, month - 1, day).toDateString());
+  }
   if (!days.size) return 0;
   const cursor = new Date(now);
   if (!days.has(cursor.toDateString())) {

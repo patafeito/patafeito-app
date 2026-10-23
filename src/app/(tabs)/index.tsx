@@ -8,6 +8,7 @@ import { usePetReaction } from '../../features/pet/application/pet-mood';
 import { PetStage } from '../../features/pet/components/PetStage';
 import { loadLocalPet } from '../../features/pet/infrastructure/local-pet-repository';
 import { hasFailedSendAttempt, pendingOperationCount } from '../../features/sync/infrastructure/sync-repository';
+import { cachedBoosts, equippedBackgroundSku } from '../../features/shop/infrastructure/shop-repository';
 import { toggleTaskCompletion } from '../../features/tasks/application/toggle-task';
 import { currentStreak, isForToday, isOverdue, type Task } from '../../features/tasks/domain/task';
 import { ensureRecurringOccurrences, listCompletionDates, listLocalTasks } from '../../features/tasks/infrastructure/local-task-repository';
@@ -22,15 +23,16 @@ import { colors, spacing, typography } from '../../shared/theme/tokens';
 
 async function loadHome() {
   if (await ensureRecurringOccurrences()) syncInBackground();
-  const [pet, tasks, completionDates, pendingOperations, sendFailed] = await Promise.all([
-    loadLocalPet(), listLocalTasks(), listCompletionDates(), pendingOperationCount(), hasFailedSendAttempt(),
+  const [pet, tasks, completionDates, pendingOperations, sendFailed, boosts, backgroundSku] = await Promise.all([
+    loadLocalPet(), listLocalTasks(), listCompletionDates(), pendingOperationCount(), hasFailedSendAttempt(), cachedBoosts(), equippedBackgroundSku(),
   ]);
   return {
     pet,
     todayTasks: tasks.filter((task) => task.status === 'pending' && isForToday(task)).slice(0, 4),
     finishedToday: tasks.some((task) => !!task.completedAt && new Date(task.completedAt).toDateString() === new Date().toDateString()),
     pendingTasks: tasks.filter((task) => task.status === 'pending'),
-    streak: currentStreak(completionDates),
+    streak: currentStreak(completionDates, new Date(), boosts.protectedDates),
+    backgroundSku,
     pendingOperations,
     // Com rede, o XP é confirmado em instantes; o aviso só aparece quando o envio falhou.
     pendingXp: sendFailed ? tasks.reduce((total, task) => total + (task.pendingXp ?? 0), 0) : 0,
@@ -79,7 +81,7 @@ export default function HomeScreen() {
   return <Screen scrollRef={scrollRef}>
     <Text style={styles.greeting}>Oi{user ? `, ${user.displayName.split(' ')[0]}` : ''}!</Text>
 
-    {pet ? <PetStage pet={pet} streak={data?.streak ?? 0} pendingXp={data?.pendingXp} />
+    {pet ? <PetStage pet={pet} streak={data?.streak ?? 0} pendingXp={data?.pendingXp} backgroundSku={data?.backgroundSku} />
       : <Card><Text style={styles.muted}>Seu pato aparece aqui assim que for criado.</Text></Card>}
 
     <Card tone="primary" style={styles.recommendation}>

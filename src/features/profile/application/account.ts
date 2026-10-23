@@ -39,7 +39,7 @@ export async function resetProgress(currentPassword: string) {
     DELETE FROM local_focus_sessions;
     DELETE FROM sync_queue;
     DELETE FROM sync_state;
-    DELETE FROM local_profile WHERE key IN ('rewards.balance', 'focus.breakEndsAt');
+    DELETE FROM local_profile WHERE key IN ('rewards.balance', 'focus.breakEndsAt', 'shop.boosts');
   `);
   await synchronize();
 }

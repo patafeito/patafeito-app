@@ -1,13 +1,15 @@
 import { authorizedFetch } from '../../../shared/network/authorized-fetch';
+import { showNotice } from '../../../shared/ui/NoticeHost';
 import { fetchPet } from '../../pet/infrastructure/pet-api';
 import { refreshBalance } from '../../rewards/infrastructure/balance-repository';
+import { refreshBoosts, refreshCatalog } from '../../shop/infrastructure/shop-repository';
 import type { QueuedOperation, SyncChange, SyncResultStatus } from '../domain/types';
 import {
   applyChanges, deferOperation, discardLocalTask, getCursor, markFocusSessionSynced, markOperation,
   markTaskSynced, pendingOperations, removeOperation, restoreTaskCompletion, revertTaskCompletion,
 } from '../infrastructure/sync-repository';
 
-type PushResult = { opId: string; status: SyncResultStatus; data?: Record<string, unknown>; reason?: string };
+type PushResult = { opId: string; status: SyncResultStatus; data?: Record<string, unknown>; reason?: string; code?: string };
 type PullResponse = { changes: SyncChange[]; nextCursor: string; hasMore?: boolean; snapshot: boolean };
 
 const listeners = new Set<() => void>();
@@ -21,8 +23,16 @@ async function applyResult(operation: QueuedOperation, result: PushResult) {
   const accepted = result.status === 'applied' || result.status === 'duplicate';
   if (operation.resourceId && (operation.type === 'task.complete' || operation.type === 'task.reopen')) {
     if (accepted) await markTaskSynced(operation.resourceId);
-    else if (operation.type === 'task.complete') await revertTaskCompletion(operation.resourceId);
-    else await restoreTaskCompletion(operation.resourceId);
+    else if (operation.type === 'task.complete') {
+      // Concluída offline, mas o servidor recusou (por exemplo, venceu antes do envio): volta para pendente sem XP.
+      const title = await revertTaskCompletion(operation.resourceId);
+      // Já concluída em outro aparelho: o pull a seguir traz o estado certo, não há o que avisar.
+      if (result.code !== 'TASK_NOT_PENDING') showNotice(`“${title ?? 'A tarefa'}” voltou para pendente, sem XP nem moedas. ${result.reason ?? 'O servidor não aceitou a conclusão.'}`, 'warning');
+    } else {
+      // Desmarcada offline, mas o servidor recusou (moedas já gastas): a tarefa volta e o usuário fica sabendo.
+      const title = await restoreTaskCompletion(operation.resourceId);
+      showNotice(`“${title ?? 'A tarefa'}” continua concluída. ${result.reason ?? 'O servidor não aceitou desmarcá-la.'}`, 'warning');
+    }
   }
   if (operation.type === 'task.create' && operation.resourceId && !accepted) await discardLocalTask(operation.resourceId);
   if (operation.type === 'focus.complete' && operation.resourceId) await markFocusSessionSynced(operation.resourceId, accepted);
@@ -60,6 +70,8 @@ export async function synchronize() {
   try {
     await sendPush();
     await pullAll();
+    // Catálogo e poderes não passam pelo log de mudanças: são relidos a cada sincronização.
+    await Promise.all([refreshCatalog(), refreshBoosts()]).catch(() => undefined);
   } catch (error) {
     await retryDeferredOperations();
     throw error;

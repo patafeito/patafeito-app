@@ -33,7 +33,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "sprites": "node scripts/slice-pet-sprites.mjs",
-    "brand": "node scripts/prepare-brand-assets.mjs"
+    "brand": "node scripts/prepare-brand-assets.mjs",
+    "shop-assets": "node scripts/prepare-shop-assets.mjs"
   },
   "private": true
 }

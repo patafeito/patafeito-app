@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ApiError, NetworkError } from '../../../shared/network/api-client';
 import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
+import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 import { TextField } from '../../../shared/ui/TextField';
 import { colors, spacing, typography } from '../../../shared/theme/tokens';
 import { useSession } from '../../auth/application/session-context';
@@ -133,18 +134,18 @@ export function ResetProgressCard({ onReset }: { onReset: () => void }) {
   const [error, setError] = useState<string>();
   const [resetting, setResetting] = useState(false);
   const [notice, setNotice] = useState<string>();
+  const { confirm: ask, dialog } = useConfirm();
 
   function confirm() {
     if (!password) return setError('Digite sua senha atual para confirmar.');
     setError(undefined);
-    Alert.alert(
-      'Resetar progresso?',
-      'XP, nível, moedas, itens, ciclos de foco e tarefas concluídas serão apagados. Isso não pode ser desfeito.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Resetar', style: 'destructive', onPress: () => void reset() },
-      ],
-    );
+    ask({
+      title: 'Resetar progresso?',
+      message: 'XP, nível, moedas, itens, ciclos de foco e tarefas concluídas serão apagados. Isso não pode ser desfeito.',
+      confirmLabel: 'Resetar',
+      destructive: true,
+      onConfirm: () => void reset(),
+    });
   }
 
   async function reset() {
@@ -169,6 +170,7 @@ export function ResetProgressCard({ onReset }: { onReset: () => void }) {
       {notice ? <Text style={styles.success}>{notice}</Text> : null}
       <Button label={resetting ? 'Resetando…' : 'Resetar progresso'} variant="secondary" onPress={confirm} disabled={resetting} />
     </View>
+    {dialog}
   </Card>;
 }
 

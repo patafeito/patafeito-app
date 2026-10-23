@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { syncInBackground } from '../../features/sync/application/sync-startup';
 import { synchronize } from '../../features/sync/application/sync-engine';
@@ -11,6 +11,7 @@ import { useLocalData } from '../../shared/hooks/use-local-data';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
 import { ChipGroup } from '../../shared/ui/ChipGroup';
+import { useConfirm } from '../../shared/ui/ConfirmDialog';
 import { Screen } from '../../shared/ui/Screen';
 import { TaskItem } from '../../shared/ui/TaskItem';
 import { TextField } from '../../shared/ui/TextField';
@@ -74,6 +75,7 @@ export default function TasksScreen() {
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const [refreshing, setRefreshing] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   const visible = (tasks ?? []).filter((task) => filter === 'all' || task.status === filter);
 
@@ -103,14 +105,13 @@ export default function TasksScreen() {
 
   function confirmDelete(task: Task) {
     const repeating = !!task.recurrence && task.status === 'pending';
-    Alert.alert(
-      'Excluir tarefa?',
-      repeating ? `“${task.title}” deixa de se repetir.` : `“${task.title}” sai da sua lista.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: () => void remove(task) },
-      ],
-    );
+    confirm({
+      title: 'Excluir tarefa?',
+      message: repeating ? `“${task.title}” deixa de se repetir.` : `“${task.title}” sai da sua lista.`,
+      confirmLabel: 'Excluir',
+      destructive: true,
+      onConfirm: () => void remove(task),
+    });
   }
 
   async function remove(task: Task) {
@@ -163,6 +164,7 @@ export default function TasksScreen() {
         ? <Text style={styles.empty}>{filter === 'completed' ? 'Nada concluído ainda. A primeira vitória vem já.' : 'Ainda não há tarefas. Comece pequeno: uma tarefa clara já é progresso.'}</Text>
         : visible.map((task) => <TaskItem key={task.id} task={task} onPress={() => void toggle(task)} onLongPress={confirmDelete} />)}
     </View>
+    {dialog}
   </Screen>;
 }
 

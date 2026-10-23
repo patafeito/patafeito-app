@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Badge } from '../../../shared/ui/Badge';
 import { Card } from '../../../shared/ui/Card';
 import { DuckStatus } from '../../../shared/ui/DuckStatus';
 import { ExperienceBar } from '../../../shared/ui/ExperienceBar';
 import { colors, radius, spacing, typography } from '../../../shared/theme/tokens';
 import { speciesById } from '../../onboarding/domain/species';
+import { itemImage } from '../../shop/domain/catalog';
 import { usePetReaction } from '../application/pet-mood';
 import { useAmbientPose } from '../application/use-ambient-pose';
 import { usePetStats } from '../application/use-pet-stats';
@@ -19,6 +20,8 @@ type PetStageProps = {
   streak: number;
   pendingXp?: number;
   spriteHeight?: number;
+  /** Sku do cenário equipado na loja; sem ele, o palco fica liso. */
+  backgroundSku?: string;
 };
 
 const petThoughts: Record<PetVisualState, string> = {
@@ -34,7 +37,8 @@ const petThoughts: Record<PetVisualState, string> = {
 const petThoughtsWhenTouched = ['Oi!', 'Mais carinho!', 'Hehe, faz cócegas.', 'Tô pronto pro próximo passo.'];
 const touchReactionMs = 1400;
 
-export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220 }: PetStageProps) {
+export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220, backgroundSku }: PetStageProps) {
+  const background = backgroundSku ? itemImage(backgroundSku) : undefined;
   const species = speciesById(pet.speciesId);
   const progress = levelProgress(pet.xpTotal);
   const reaction = usePetReaction();
@@ -77,7 +81,8 @@ export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220 }: Pet
       onPress={greet}
       style={styles.stage}
     >
-      <View style={[styles.ground, { width: spriteHeight * 0.72 }]} />
+      {background ? <Image source={background} style={styles.scene} resizeMode="cover" accessibilityIgnoresInvertColors /> : null}
+      <View style={[styles.ground, background ? styles.groundOnScene : undefined, { width: spriteHeight * 0.72 }]} />
       <PetSprite species={species.id} state={state} height={spriteHeight} />
     </Pressable>
 
@@ -100,7 +105,9 @@ const styles = StyleSheet.create({
   identity: { flexShrink: 1 },
   name: { ...typography.display, color: colors.text, fontSize: 24 },
   species: { ...typography.body, color: colors.textMuted, fontSize: 14 },
-  stage: { alignItems: 'center', justifyContent: 'flex-end', paddingTop: spacing.sm },
+  stage: { alignItems: 'center', justifyContent: 'flex-end', paddingTop: spacing.sm, borderRadius: radius.md, overflow: 'hidden' },
+  scene: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: undefined, height: undefined },
+  groundOnScene: { backgroundColor: 'rgba(0, 0, 0, 0.18)', bottom: spacing.sm },
   ground: { height: 14, borderRadius: radius.pill, backgroundColor: colors.surfaceMuted, position: 'absolute', bottom: 2, opacity: 0.9 },
   thought: { ...typography.body, color: colors.textMuted, fontSize: 15, textAlign: 'center' },
   pending: { ...typography.body, color: colors.experience, fontSize: 13, textAlign: 'center' },

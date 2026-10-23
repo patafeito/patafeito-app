@@ -92,17 +92,23 @@ export async function markTaskSynced(taskId: string) {
   await database.runAsync("UPDATE local_tasks SET pending_xp = NULL, pending_coins = NULL, sync_state = 'synced' WHERE id = ?", taskId);
 }
 
+/** Devolve o título para o aviso ao usuário. */
 export async function restoreTaskCompletion(taskId: string) {
   const database = await getDatabase();
   await database.runAsync(
     "UPDATE local_tasks SET status = 'completed', completed_at = COALESCE(completed_at, ?), sync_state = 'synced' WHERE id = ?",
     new Date().toISOString(), taskId,
   );
+  const row = await database.getFirstAsync<{ title: string }>('SELECT title FROM local_tasks WHERE id = ?', taskId);
+  return row?.title;
 }
 
+/** Devolve o título para o aviso ao usuário. */
 export async function revertTaskCompletion(taskId: string) {
   const database = await getDatabase();
   await database.runAsync("UPDATE local_tasks SET status = 'pending', completed_at = NULL, pending_xp = NULL, pending_coins = NULL, sync_state = 'synced' WHERE id = ?", taskId);
+  const row = await database.getFirstAsync<{ title: string }>('SELECT title FROM local_tasks WHERE id = ?', taskId);
+  return row?.title;
 }
 
 export async function markFocusSessionSynced(sessionId: string, synced: boolean) {

@@ -6,6 +6,7 @@ import { loadLocalPet } from '../../features/pet/infrastructure/local-pet-reposi
 import { ChangePasswordCard, EditProfileCard, ResetProgressCard } from '../../features/profile/components/AccountForms';
 import { cachedBalance, refreshBalance } from '../../features/rewards/infrastructure/balance-repository';
 import { pendingOperationCount } from '../../features/sync/infrastructure/sync-repository';
+import { cachedBoosts } from '../../features/shop/infrastructure/shop-repository';
 import { currentStreak } from '../../features/tasks/domain/task';
 import { countCompletedTasks, listCompletionDates } from '../../features/tasks/infrastructure/local-task-repository';
 import { useLocalData } from '../../shared/hooks/use-local-data';
@@ -15,11 +16,11 @@ import { Screen } from '../../shared/ui/Screen';
 import { colors, spacing, typography } from '../../shared/theme/tokens';
 
 async function loadProfile() {
-  const [pet, completionDates, completedTasks, completedSessions, pendingOperations] = await Promise.all([
-    loadLocalPet(), listCompletionDates(), countCompletedTasks(), countCompletedSessions(), pendingOperationCount(),
+  const [pet, completionDates, completedTasks, completedSessions, pendingOperations, boosts] = await Promise.all([
+    loadLocalPet(), listCompletionDates(), countCompletedTasks(), countCompletedSessions(), pendingOperationCount(), cachedBoosts(),
   ]);
   const balance = (await refreshBalance().catch(() => undefined)) ?? (await cachedBalance());
-  return { pet, streak: currentStreak(completionDates), completedTasks, completedSessions, pendingOperations, balance };
+  return { pet, streak: currentStreak(completionDates, new Date(), boosts.protectedDates), completedTasks, completedSessions, pendingOperations, balance };
 }
 
 export default function ProfileScreen() {
