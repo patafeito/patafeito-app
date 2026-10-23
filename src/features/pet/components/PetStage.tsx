@@ -8,6 +8,7 @@ import { colors, radius, spacing, typography } from '../../../shared/theme/token
 import { speciesById } from '../../onboarding/domain/species';
 import { usePetReaction } from '../application/pet-mood';
 import { useAmbientPose } from '../application/use-ambient-pose';
+import { usePetStats } from '../application/use-pet-stats';
 import { levelProgress } from '../domain/progression';
 import { moodFor, type PetVisualState } from '../domain/pet-sprites';
 import { PetSprite } from './PetSprite';
@@ -43,7 +44,8 @@ export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220 }: Pet
 
   useEffect(() => () => clearTimeout(touchTimer.current), []);
 
-  const mood = moodFor(pet);
+  const stats = usePetStats(pet);
+  const mood = moodFor(stats);
   const ambient = useAmbientPose(mood, !reaction && !touch);
   const state = reaction?.state ?? touch?.state ?? ambient;
   const thought = reaction?.message ?? touch?.thought ?? petThoughts[mood];
@@ -85,9 +87,9 @@ export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220 }: Pet
     {pendingXp > 0 ? <Text style={styles.pending}>+{pendingXp} XP aguardando confirmação do servidor.</Text> : null}
 
     <View style={styles.statuses}>
-      <View style={styles.status}><DuckStatus label="Fome" value={pet.hunger} icon="restaurant-outline" color={colors.experience} /></View>
-      <View style={styles.status}><DuckStatus label="Energia" value={pet.health} icon="flash-outline" color={colors.primary} /></View>
-      <View style={styles.status}><DuckStatus label="Felicidade" value={pet.happiness} icon="heart-outline" color={colors.success} /></View>
+      <View style={styles.status}><DuckStatus label="Saciedade" value={stats.hunger} icon="restaurant-outline" color={colors.experience} /></View>
+      <View style={styles.status}><DuckStatus label="Energia" value={stats.energy} icon="flash-outline" color={colors.primary} /></View>
+      <View style={styles.status}><DuckStatus label="Felicidade" value={stats.happiness} icon="heart-outline" color={colors.success} /></View>
     </View>
   </Card>;
 }

@@ -15,3 +15,9 @@ export async function refreshBalance(): Promise<Balance> {
   await localProfile.set(balanceKey, JSON.stringify(balance));
   return balance;
 }
+
+/** Ajuste otimista do saldo em cache até a próxima leitura do servidor. */
+export async function adjustCachedBalance(coinDelta: number) {
+  const balance = await cachedBalance();
+  if (balance) await localProfile.set(balanceKey, JSON.stringify({ ...balance, coins: balance.coins + coinDelta }));
+}

@@ -35,6 +35,11 @@ const migrations = [
    );
    CREATE INDEX IF NOT EXISTS local_focus_sessions_status_idx ON local_focus_sessions(status, started_at);
    CREATE TABLE IF NOT EXISTS local_profile (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);`,
+
+  `ALTER TABLE local_tasks ADD COLUMN recurrence TEXT;
+   ALTER TABLE local_tasks ADD COLUMN recurrence_day INTEGER;
+   ALTER TABLE local_tasks ADD COLUMN series_id TEXT;
+   CREATE INDEX IF NOT EXISTS local_tasks_series_idx ON local_tasks(series_id, due_at);`,
 ];
 
 export async function migrate(database: SQLite.SQLiteDatabase) {

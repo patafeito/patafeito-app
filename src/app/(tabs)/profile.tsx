@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSession } from '../../features/auth/application/session-context';
 import { countCompletedSessions } from '../../features/focus/infrastructure/local-focus-repository';
 import { loadLocalPet } from '../../features/pet/infrastructure/local-pet-repository';
+import { ChangePasswordCard, EditProfileCard, ResetProgressCard } from '../../features/profile/components/AccountForms';
 import { cachedBalance, refreshBalance } from '../../features/rewards/infrastructure/balance-repository';
 import { pendingOperationCount } from '../../features/sync/infrastructure/sync-repository';
 import { currentStreak } from '../../features/tasks/domain/task';
@@ -22,17 +23,14 @@ async function loadProfile() {
 }
 
 export default function ProfileScreen() {
-  const { user, signOut } = useSession();
-  const { data } = useLocalData(loadProfile);
+  const { signOut } = useSession();
+  const { data, reload } = useLocalData(loadProfile);
   const [signingOut, setSigningOut] = useState(false);
 
   return <Screen>
     <Text style={styles.title}>Seu perfil</Text>
 
-    <Card tone="raised">
-      <Text style={styles.name}>{user?.displayName ?? 'Sua conta'}</Text>
-      <Text style={styles.muted}>{user?.email ?? ''}</Text>
-    </Card>
+    <EditProfileCard />
 
     <Card>
       <Text style={styles.cardTitle}>Progresso</Text>
@@ -52,6 +50,9 @@ export default function ProfileScreen() {
       </Text>
     </Card>
 
+    <ChangePasswordCard />
+    <ResetProgressCard onReset={() => void reload()} />
+
     <Button
       label={signingOut ? 'Saindo…' : 'Sair da conta'}
       variant="secondary"
@@ -68,7 +69,6 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   title: { ...typography.display, color: colors.text, fontSize: 26 },
-  name: { ...typography.heading, color: colors.text, fontSize: 18 },
   cardTitle: { ...typography.heading, color: colors.text, fontSize: 17, marginBottom: spacing.sm },
   muted: { ...typography.body, color: colors.textMuted, fontSize: 15, lineHeight: 22 },
   value: { ...typography.numeric, color: colors.text, fontSize: 15 },

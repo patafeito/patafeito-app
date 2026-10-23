@@ -34,3 +34,7 @@ export async function storedUser(): Promise<User | undefined> {
   const value = await localProfile.get(userKey);
   return value ? JSON.parse(value) as User : undefined;
 }
+
+export async function saveStoredUser(user: User) {
+  await localProfile.set(userKey, JSON.stringify(user));
+}

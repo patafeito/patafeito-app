@@ -1,3 +1,5 @@
+import type { Recurrence } from './recurrence';
+
 export type TaskDifficulty = 'easy' | 'medium' | 'hard';
 export type TaskStatus = 'pending' | 'completed';
 
@@ -11,14 +13,17 @@ export type Task = {
   completedAt?: string | null;
   pendingXp?: number | null;
   pendingCoins?: number | null;
+  recurrence?: Recurrence | null;
+  recurrenceDay?: number | null;
+  seriesId?: string | null;
 };
 
 export const difficultyLabel: Record<TaskDifficulty, string> = { easy: 'Fácil', medium: 'Média', hard: 'Difícil' };
 
 export const estimatedReward: Record<TaskDifficulty, { xp: number; coins: number }> = {
-  easy: { xp: 10, coins: 2 },
-  medium: { xp: 20, coins: 4 },
-  hard: { xp: 40, coins: 8 },
+  easy: { xp: 10, coins: 1 },
+  medium: { xp: 20, coins: 2 },
+  hard: { xp: 40, coins: 3 },
 };
 
 export function isOverdue(task: Task, now = new Date()) {

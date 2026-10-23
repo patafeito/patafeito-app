@@ -12,13 +12,13 @@ export async function activeSession(): Promise<FocusSession | undefined> {
   return row ?? undefined;
 }
 
-export async function startSession(taskId?: string | null): Promise<FocusSession> {
+export async function startSession(taskId?: string | null, durationSeconds = POMODORO_DURATION_SECONDS): Promise<FocusSession> {
   const database = await getDatabase();
   const session: FocusSession = {
     id: newId(),
     taskId: taskId ?? null,
     startedAt: new Date().toISOString(),
-    durationSeconds: POMODORO_DURATION_SECONDS,
+    durationSeconds,
     status: 'active',
   };
   await database.runAsync(
@@ -53,7 +53,7 @@ export async function completeSession(session: FocusSession) {
   const database = await getDatabase();
   const finishedAt = new Date().toISOString();
   await database.runAsync("UPDATE local_focus_sessions SET status = 'completed', finished_at = ?, sync_state = 'pending' WHERE id = ?", finishedAt, session.id);
-  await enqueueOperation('focus.complete', { startedAt: session.startedAt, finishedAt }, { resourceId: session.id });
+  await enqueueOperation('focus.complete', { startedAt: session.startedAt, finishedAt, durationSeconds: session.durationSeconds }, { resourceId: session.id });
 }
 
 export async function countCompletedSessions() {

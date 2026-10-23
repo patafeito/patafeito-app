@@ -67,10 +67,10 @@ export async function applyChanges(changes: SyncChange[], cursor: string) {
           await database.runAsync("UPDATE local_tasks SET deleted_at = ?, sync_state = 'synced' WHERE id = ?", String(change.data.deletedAt ?? new Date().toISOString()), change.entityId);
         } else {
           const task = change.data;
-          await database.runAsync(`INSERT INTO local_tasks (id, title, description, difficulty, status, due_at, completed_at, version, updated_at, deleted_at, sync_state)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')
-            ON CONFLICT(id) DO UPDATE SET title = excluded.title, description = excluded.description, difficulty = excluded.difficulty, status = excluded.status, due_at = excluded.due_at, completed_at = excluded.completed_at, version = excluded.version, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, sync_state = 'synced'`,
-          String(task.id), String(task.title), task.description == null ? null : String(task.description), String(task.difficulty), String(task.status), task.dueAt == null ? null : String(task.dueAt), task.completedAt == null ? null : String(task.completedAt), Number(task.version), String(task.updatedAt ?? new Date().toISOString()), task.deletedAt == null ? null : String(task.deletedAt));
+          await database.runAsync(`INSERT INTO local_tasks (id, title, description, difficulty, status, due_at, completed_at, version, updated_at, deleted_at, recurrence, recurrence_day, series_id, sync_state)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')
+            ON CONFLICT(id) DO UPDATE SET title = excluded.title, description = excluded.description, difficulty = excluded.difficulty, status = excluded.status, due_at = excluded.due_at, completed_at = excluded.completed_at, version = excluded.version, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, recurrence = excluded.recurrence, recurrence_day = excluded.recurrence_day, series_id = excluded.series_id, sync_state = 'synced'`,
+          String(task.id), String(task.title), task.description == null ? null : String(task.description), String(task.difficulty), String(task.status), task.dueAt == null ? null : String(task.dueAt), task.completedAt == null ? null : String(task.completedAt), Number(task.version), String(task.updatedAt ?? new Date().toISOString()), task.deletedAt == null ? null : String(task.deletedAt), task.recurrence == null ? null : String(task.recurrence), task.recurrenceDay == null ? null : Number(task.recurrenceDay), task.seriesId == null ? null : String(task.seriesId));
         }
       } else {
         const table = change.entityType === 'pet' ? 'local_pets' : change.entityType === 'inventory' ? 'local_inventory' : 'local_notifications';
@@ -79,6 +79,12 @@ export async function applyChanges(changes: SyncChange[], cursor: string) {
     }
     await database.runAsync('INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', cursorKey, cursor);
   });
+}
+
+/** O servidor recusou a criação (por exemplo, repetição já excluída em outro aparelho): some com a cópia local. */
+export async function discardLocalTask(taskId: string) {
+  const database = await getDatabase();
+  await database.runAsync("UPDATE local_tasks SET deleted_at = COALESCE(deleted_at, ?), sync_state = 'synced' WHERE id = ?", new Date().toISOString(), taskId);
 }
 
 export async function markTaskSynced(taskId: string) {
@@ -108,4 +114,11 @@ export async function pendingOperationCount() {
   const database = await getDatabase();
   const row = await database.getFirstAsync<{ total: number }>("SELECT count(*) AS total FROM sync_queue WHERE state = 'pending'");
   return row?.total ?? 0;
+}
+
+/** Há operação que já tentou ir ao servidor e falhou (sem conexão, servidor fora do ar). */
+export async function hasFailedSendAttempt() {
+  const database = await getDatabase();
+  const row = await database.getFirstAsync<{ total: number }>("SELECT count(*) AS total FROM sync_queue WHERE state = 'pending' AND attempts > 0");
+  return (row?.total ?? 0) > 0;
 }

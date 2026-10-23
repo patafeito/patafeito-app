@@ -13,6 +13,7 @@ export default function RootLayout() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ title: 'Seu pato' }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="switch-pet" options={{ title: 'Trocar de pato' }} />
     </Stack>
   </SessionProvider>;
 }

@@ -10,6 +10,8 @@ type SessionContextValue = {
   signIn: (input: { email: string; password: string }) => Promise<void>;
   signUp: (input: { email: string; password: string; displayName: string }) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Atualiza o usuário exibido depois de editar o perfil. */
+  updateUser: (user: User) => void;
 };
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -46,7 +48,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setStatus('signed-out');
   }, []);
 
-  const value = useMemo(() => ({ status, user, signIn, signUp, signOut }), [status, user, signIn, signUp, signOut]);
+  const updateUser = useCallback((next: User) => setUser(next), []);
+
+  const value = useMemo(() => ({ status, user, signIn, signUp, signOut, updateUser }), [status, user, signIn, signUp, signOut, updateUser]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

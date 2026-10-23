@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { syncInBackground } from '../../features/sync/application/sync-startup';
 import { synchronize } from '../../features/sync/application/sync-engine';
 import { toggleTaskCompletion } from '../../features/tasks/application/toggle-task';
+import { parseMonthDay, recurrenceLabel, weekdayLabels, type Recurrence, type RecurrenceRule } from '../../features/tasks/domain/recurrence';
 import { estimatedReward, type Task, type TaskDifficulty, type TaskStatus } from '../../features/tasks/domain/task';
-import { createLocalTask, listLocalTasks } from '../../features/tasks/infrastructure/local-task-repository';
+import { createLocalTask, deleteLocalTask, ensureRecurringOccurrences, listLocalTasks } from '../../features/tasks/infrastructure/local-task-repository';
 import { useLocalData } from '../../shared/hooks/use-local-data';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
@@ -16,6 +17,7 @@ import { TextField } from '../../shared/ui/TextField';
 import { colors, spacing, typography } from '../../shared/theme/tokens';
 
 type DueOption = 'none' | 'today' | 'tomorrow';
+type RepeatOption = 'none' | Recurrence;
 
 const difficultyOptions: { value: TaskDifficulty; label: string }[] = [
   { value: 'easy', label: 'Fácil · 10 XP' },
@@ -27,6 +29,13 @@ const dueOptions: { value: DueOption; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'tomorrow', label: 'Amanhã' },
 ];
+const repeatOptions: { value: RepeatOption; label: string }[] = [
+  { value: 'none', label: 'Não repete' },
+  { value: 'daily', label: 'Diária' },
+  { value: 'weekly', label: 'Semanal' },
+  { value: 'monthly', label: 'Mensal' },
+];
+const weekdayOptions = weekdayLabels.map((label, day) => ({ value: String(day), label }));
 const filterOptions: { value: 'all' | TaskStatus; label: string }[] = [
   { value: 'all', label: 'Todas' },
   { value: 'pending', label: 'Pendentes' },
@@ -41,12 +50,27 @@ function dueAtFor(option: DueOption) {
   return date.toISOString();
 }
 
+function ruleFor(repeat: RepeatOption, weekday: number, monthDay: number): RecurrenceRule | null {
+  if (repeat === 'none') return null;
+  if (repeat === 'daily') return { recurrence: 'daily', recurrenceDay: null };
+  return { recurrence: repeat, recurrenceDay: repeat === 'weekly' ? weekday : monthDay };
+}
+
+async function loadTasks() {
+  if (await ensureRecurringOccurrences()) syncInBackground();
+  return listLocalTasks();
+}
+
 export default function TasksScreen() {
-  const { data: tasks, reload } = useLocalData(() => listLocalTasks());
+  const { data: tasks, reload } = useLocalData(loadTasks);
   const [filter, setFilter] = useState<'all' | TaskStatus>('all');
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState<TaskDifficulty>('easy');
   const [due, setDue] = useState<DueOption>('none');
+  const [repeat, setRepeat] = useState<RepeatOption>('none');
+  const [weekday, setWeekday] = useState(() => new Date().getDay());
+  const [monthDay, setMonthDay] = useState(() => String(new Date().getDate()));
+  const [monthDayError, setMonthDayError] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const [refreshing, setRefreshing] = useState(false);
@@ -57,9 +81,15 @@ export default function TasksScreen() {
     const value = title.trim();
     if (!value) return setError('Escreva uma tarefa antes de adicioná-la.');
     setError(undefined);
-    await createLocalTask({ title: value, difficulty, dueAt: dueAtFor(due) });
+    const day = parseMonthDay(monthDay);
+    if (repeat === 'monthly' && day === undefined) return setMonthDayError('Digite um dia do mês entre 1 e 31.');
+    setMonthDayError(undefined);
+    const rule = ruleFor(repeat, weekday, day ?? 1);
+    await createLocalTask({ title: value, difficulty, dueAt: dueAtFor(due), rule });
     setTitle('');
-    setMessage(`Tarefa salva. Vale ${estimatedReward[difficulty].xp} XP ao concluir.`);
+    setMessage(rule
+      ? `Tarefa salva: ${recurrenceLabel(rule).toLowerCase()}. Cada repetição vale ${estimatedReward[difficulty].xp} XP.`
+      : `Tarefa salva. Vale ${estimatedReward[difficulty].xp} XP ao concluir.`);
     await reload();
     syncInBackground();
   }
@@ -69,6 +99,25 @@ export default function TasksScreen() {
     setMessage(result.message);
     await reload();
     if (result.action === 'completed') router.navigate('/(tabs)');
+  }
+
+  function confirmDelete(task: Task) {
+    const repeating = !!task.recurrence && task.status === 'pending';
+    Alert.alert(
+      'Excluir tarefa?',
+      repeating ? `“${task.title}” deixa de se repetir.` : `“${task.title}” sai da sua lista.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Excluir', style: 'destructive', onPress: () => void remove(task) },
+      ],
+    );
+  }
+
+  async function remove(task: Task) {
+    await deleteLocalTask(task);
+    setMessage(`“${task.title}” foi excluída.`);
+    await reload();
+    syncInBackground();
   }
 
   async function refresh() {
@@ -90,7 +139,19 @@ export default function TasksScreen() {
     <Card style={styles.form}>
       <TextField label="Nova tarefa" value={title} onChangeText={setTitle} placeholder="Ex.: Ler 10 páginas" returnKeyType="done" onSubmitEditing={() => void addTask()} error={error} maxLength={200} />
       <ChipGroup label="Dificuldade" options={difficultyOptions} value={difficulty} onChange={setDifficulty} />
-      <ChipGroup label="Prazo" options={dueOptions} value={due} onChange={setDue} />
+      <ChipGroup label="Repetição" options={repeatOptions} value={repeat} onChange={setRepeat} />
+      {repeat === 'weekly' ? <ChipGroup label="Dia da semana" options={weekdayOptions} value={String(weekday)} onChange={(value) => setWeekday(Number(value))} /> : null}
+      {repeat === 'monthly' ? <TextField
+        label="Dia do mês"
+        value={monthDay}
+        onChangeText={(text) => { setMonthDay(text); setMonthDayError(undefined); }}
+        placeholder="1 a 31"
+        keyboardType="number-pad"
+        maxLength={2}
+        error={monthDayError}
+        hint={(parseMonthDay(monthDay) ?? 0) > 28 ? 'Nos meses mais curtos, a tarefa cai no último dia.' : 'Um número de 1 a 31.'}
+      /> : null}
+      {repeat === 'none' ? <ChipGroup label="Prazo" options={dueOptions} value={due} onChange={setDue} /> : null}
       <Button label="Adicionar tarefa" onPress={() => void addTask()} />
     </Card>
 
@@ -100,7 +161,7 @@ export default function TasksScreen() {
     <View style={styles.list}>
       {visible.length === 0
         ? <Text style={styles.empty}>{filter === 'completed' ? 'Nada concluído ainda. A primeira vitória vem já.' : 'Ainda não há tarefas. Comece pequeno: uma tarefa clara já é progresso.'}</Text>
-        : visible.map((task) => <TaskItem key={task.id} task={task} onPress={() => void toggle(task)} />)}
+        : visible.map((task) => <TaskItem key={task.id} task={task} onPress={() => void toggle(task)} onLongPress={confirmDelete} />)}
     </View>
   </Screen>;
 }

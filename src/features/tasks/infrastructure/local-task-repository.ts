@@ -1,10 +1,11 @@
 import { getDatabase } from '../../../db/client';
-import { newId } from '../../../shared/utils/identifier';
+import { deterministicId, newId } from '../../../shared/utils/identifier';
 import { discardPendingOperation, enqueueOperation } from '../../sync/infrastructure/sync-repository';
-import { estimatedReward, type Task, type TaskDifficulty, type TaskStatus } from '../domain/task';
+import { dayKey, nextOccurrence, type RecurrenceRule } from '../domain/recurrence';
+import { estimatedReward, isOverdue, type Task, type TaskDifficulty, type TaskStatus } from '../domain/task';
 
 const selectColumns = `id, title, description, difficulty, status, due_at AS dueAt, completed_at AS completedAt,
-  pending_xp AS pendingXp, pending_coins AS pendingCoins`;
+  pending_xp AS pendingXp, pending_coins AS pendingCoins, recurrence, recurrence_day AS recurrenceDay, series_id AS seriesId`;
 
 export async function listLocalTasks(filter: 'all' | TaskStatus = 'all'): Promise<Task[]> {
   const database = await getDatabase();
@@ -28,16 +29,55 @@ export async function countCompletedTasks() {
   return row?.total ?? 0;
 }
 
-export async function createLocalTask(input: { title: string; description?: string | null; difficulty: TaskDifficulty; dueAt?: string | null }) {
+type NewTask = { title: string; description?: string | null; difficulty: TaskDifficulty; dueAt?: string | null; rule?: RecurrenceRule | null };
+
+async function insertLocalTask(id: string, input: NewTask, seriesId: string | null) {
   const database = await getDatabase();
-  const id = newId();
-  const updatedAt = new Date().toISOString();
-  await database.runAsync(
-    "INSERT INTO local_tasks (id, title, description, difficulty, status, due_at, version, updated_at, sync_state) VALUES (?, ?, ?, ?, 'pending', ?, 0, ?, 'pending')",
-    id, input.title, input.description ?? null, input.difficulty, input.dueAt ?? null, updatedAt,
+  const rule = input.rule ?? null;
+  const result = await database.runAsync(
+    "INSERT OR IGNORE INTO local_tasks (id, title, description, difficulty, status, due_at, version, updated_at, recurrence, recurrence_day, series_id, sync_state) VALUES (?, ?, ?, ?, 'pending', ?, 0, ?, ?, ?, ?, 'pending')",
+    id, input.title, input.description ?? null, input.difficulty, input.dueAt ?? null, new Date().toISOString(), rule?.recurrence ?? null, rule?.recurrenceDay ?? null, seriesId,
   );
-  await enqueueOperation('task.create', { title: input.title, description: input.description ?? null, difficulty: input.difficulty, dueAt: input.dueAt ?? null }, { resourceId: id });
+  if (!result.changes) return false;
+  await enqueueOperation('task.create', {
+    title: input.title, description: input.description ?? null, difficulty: input.difficulty, dueAt: input.dueAt ?? null,
+    ...(rule ? { recurrence: rule.recurrence, recurrenceDay: rule.recurrenceDay, seriesId } : {}),
+  }, { resourceId: id });
+  return true;
+}
+
+/** Tarefas repetidas ganham o prazo da primeira data da série a partir de hoje. */
+export async function createLocalTask(input: NewTask) {
+  const id = newId();
+  const dueAt = input.rule ? nextOccurrence(input.rule, null, new Date()).toISOString() : input.dueAt;
+  await insertLocalTask(id, { ...input, dueAt }, input.rule ? id : null);
   return id;
+}
+
+type SeriesRow = Task & { deletedAt: string | null };
+
+/**
+ * Cria a próxima repetição de cada série cuja última tarefa já foi concluída ou venceu.
+ * Uma série termina quando a última repetição é excluída. Devolve quantas tarefas foram criadas.
+ */
+export async function ensureRecurringOccurrences(now = new Date()) {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<SeriesRow>(
+    `SELECT ${selectColumns}, deleted_at AS deletedAt FROM local_tasks WHERE series_id IS NOT NULL AND recurrence IS NOT NULL ORDER BY due_at DESC`,
+  );
+  const latestBySeries = new Map<string, SeriesRow>();
+  for (const row of rows) if (!latestBySeries.has(row.seriesId!)) latestBySeries.set(row.seriesId!, row);
+
+  let created = 0;
+  for (const latest of latestBySeries.values()) {
+    if (latest.deletedAt || (latest.status === 'pending' && !isOverdue(latest, now))) continue;
+    const rule: RecurrenceRule = { recurrence: latest.recurrence!, recurrenceDay: latest.recurrenceDay ?? null };
+    const due = nextOccurrence(rule, latest.dueAt ? new Date(latest.dueAt) : null, now);
+    const id = await deterministicId(`${latest.seriesId}:${dayKey(due)}`);
+    const task = { title: latest.title, description: latest.description, difficulty: latest.difficulty, dueAt: due.toISOString(), rule };
+    if (await insertLocalTask(id, task, latest.seriesId!)) created += 1;
+  }
+  return created;
 }
 
 export async function updateLocalTask(task: Task, changes: { title?: string; difficulty?: TaskDifficulty; dueAt?: string | null }) {

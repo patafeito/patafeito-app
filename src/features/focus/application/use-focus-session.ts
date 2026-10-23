@@ -3,24 +3,33 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { syncInBackground } from '../../sync/application/sync-startup';
 import * as repository from '../infrastructure/local-focus-repository';
+import { loadBreakEndsAt, saveBreakEndsAt } from '../infrastructure/focus-settings-repository';
 import { remainingSeconds, type FocusSession } from '../domain/focus-session';
 
 export function useFocusSession() {
   const [session, setSession] = useState<FocusSession>();
   const [remaining, setRemaining] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [breakEndsAt, setBreakEndsAt] = useState<number>();
+  const [breakRemaining, setBreakRemaining] = useState(0);
+  const breakRef = useRef<number | undefined>(undefined);
+  useEffect(() => { breakRef.current = breakEndsAt; }, [breakEndsAt]);
   const sessionRef = useRef<FocusSession | undefined>(undefined);
   useEffect(() => { sessionRef.current = session; }, [session]);
 
   const tick = useCallback(() => {
     const current = sessionRef.current;
     setRemaining(current ? remainingSeconds(current) : 0);
+    setBreakRemaining(breakRef.current ? Math.max(0, Math.ceil((breakRef.current - Date.now()) / 1000)) : 0);
   }, []);
 
   const load = useCallback(async () => {
     const stored = await repository.activeSession();
     setSession(stored);
     setRemaining(stored ? remainingSeconds(stored) : 0);
+    const storedBreak = await loadBreakEndsAt();
+    setBreakEndsAt(storedBreak);
+    setBreakRemaining(storedBreak ? Math.max(0, Math.ceil((storedBreak - Date.now()) / 1000)) : 0);
     setLoading(false);
   }, []);
 
@@ -32,11 +41,18 @@ export function useFocusSession() {
     return () => { clearInterval(interval); subscription.remove(); };
   }, [load, tick]);
 
-  const start = useCallback(async (taskId?: string | null) => {
-    const started = await repository.startSession(taskId);
+  const endBreak = useCallback(async () => {
+    await saveBreakEndsAt(null);
+    setBreakEndsAt(undefined);
+    setBreakRemaining(0);
+  }, []);
+
+  const start = useCallback(async (taskId?: string | null, durationSeconds?: number) => {
+    await endBreak();
+    const started = await repository.startSession(taskId, durationSeconds);
     setSession(started);
     setRemaining(remainingSeconds(started));
-  }, []);
+  }, [endBreak]);
 
   const pause = useCallback(async () => {
     if (!sessionRef.current) return;
@@ -57,13 +73,20 @@ export function useFocusSession() {
     setRemaining(0);
   }, []);
 
-  const complete = useCallback(async () => {
+  /** Registra o ciclo e já começa a pausa, se houver. */
+  const complete = useCallback(async (breakSeconds = 0) => {
     if (!sessionRef.current) return;
     await repository.completeSession(sessionRef.current);
     setSession(undefined);
     setRemaining(0);
+    if (breakSeconds > 0) {
+      const endsAt = Date.now() + breakSeconds * 1000;
+      await saveBreakEndsAt(endsAt);
+      setBreakEndsAt(endsAt);
+      setBreakRemaining(breakSeconds);
+    }
     syncInBackground();
   }, []);
 
-  return { session, remaining, loading, start, pause, resume, cancel, complete };
+  return { session, remaining, loading, breakEndsAt, breakRemaining, start, pause, resume, cancel, complete, endBreak };
 }

@@ -56,10 +56,10 @@ export function spriteAspectRatio(species: SpeciesId) {
   return width / height;
 }
 
-export function moodFor(pet: Pick<Pet, 'hunger' | 'health' | 'happiness'> | undefined): PetVisualState {
+export function moodFor(pet: Pick<Pet, 'hunger' | 'energy' | 'happiness'> | undefined): PetVisualState {
   if (!pet) return 'idle';
   if (pet.hunger <= 30) return 'eating';
-  if (pet.health <= 30) return 'tired';
+  if (pet.energy <= 30) return 'tired';
   if (pet.happiness >= 80) return 'happy';
   return 'idle';
 }

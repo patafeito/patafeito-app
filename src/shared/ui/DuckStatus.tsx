@@ -5,7 +5,7 @@ import { colors, spacing, typography } from '../theme/tokens';
 import { ProgressBar } from './ProgressBar';
 
 type DuckStatusProps = {
-  label: 'Fome' | 'Energia' | 'Felicidade';
+  label: 'Saciedade' | 'Energia' | 'Felicidade';
   value: number;
   icon: ComponentProps<typeof Ionicons>['name'];
   color?: string;

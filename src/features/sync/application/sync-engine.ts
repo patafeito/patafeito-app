@@ -1,7 +1,9 @@
 import { authorizedFetch } from '../../../shared/network/authorized-fetch';
+import { fetchPet } from '../../pet/infrastructure/pet-api';
+import { refreshBalance } from '../../rewards/infrastructure/balance-repository';
 import type { QueuedOperation, SyncChange, SyncResultStatus } from '../domain/types';
 import {
-  applyChanges, deferOperation, getCursor, markFocusSessionSynced, markOperation,
+  applyChanges, deferOperation, discardLocalTask, getCursor, markFocusSessionSynced, markOperation,
   markTaskSynced, pendingOperations, removeOperation, restoreTaskCompletion, revertTaskCompletion,
 } from '../infrastructure/sync-repository';
 
@@ -22,7 +24,10 @@ async function applyResult(operation: QueuedOperation, result: PushResult) {
     else if (operation.type === 'task.complete') await revertTaskCompletion(operation.resourceId);
     else await restoreTaskCompletion(operation.resourceId);
   }
+  if (operation.type === 'task.create' && operation.resourceId && !accepted) await discardLocalTask(operation.resourceId);
   if (operation.type === 'focus.complete' && operation.resourceId) await markFocusSessionSynced(operation.resourceId, accepted);
+  // A refeição já foi aplicada no aparelho: se o servidor recusou, volta ao pet e ao saldo reais.
+  if (operation.type === 'pet.feed' && !accepted) await Promise.all([fetchPet(), refreshBalance()]).catch(() => undefined);
   if (accepted) await removeOperation(operation.opId);
   else await markOperation(operation, result.status === 'conflict' ? 'conflict' : 'rejected', result);
 }
