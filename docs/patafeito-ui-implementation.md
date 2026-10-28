@@ -20,9 +20,12 @@ O projeto de referência, “Gamified Productivity App”, tem uma estrutura de 
 8. Histórico e relatórios;
 9. Amigos, notificações e perfil.
 
-O app Expo atual já possui as rotas-base para onboarding, início, tarefas, pet, foco e perfil. A primeira implementação deve priorizar essas seis áreas. Loja, personalização avançada, relatórios e recursos sociais entram depois que o ciclo central estiver funcional.
+O app Expo implementa onboarding, início, tarefas, pato, foco e perfil, além da loja e da troca de pato. Personalização avançada, relatórios e recursos sociais entram depois, agora que o ciclo central funciona (ver “Situação em 27/10/2026”, na seção 9).
 
 ## 3. Direção visual
+
+> **Atualizado:** a direção de arte, a paleta light/dark, a tipografia e os componentes vigentes estão em
+> [`design-system.md`](./design-system.md). Esta seção fica como registro da intenção original.
 
 ### Conceito
 
@@ -350,6 +353,10 @@ Após validar o ciclo principal:
 8. Persistência e sincronização;
 9. Loja e personalização;
 10. Relatórios e social.
+
+### Situação em 27/10/2026
+
+Os passos 1 a 9 estão implementados (a loja traz comidas, poderes e cenários). Do item 10 e da Fase 7 faltam histórico e relatórios, tela de notificações, amigos e tarefas compartilhadas. Da seção 3, as fontes `Fredoka`/`DM Sans`/`JetBrains Mono` ainda não foram carregadas. Da seção 7.3, faltam categoria e busca de tarefas.
 
 ## 10. Critério de sucesso do MVP
 

@@ -6,9 +6,11 @@ import { speciesById } from '../features/onboarding/domain/species';
 import { preloadSpecies } from '../features/pet/domain/pet-sprites';
 import { loadLocalPet } from '../features/pet/infrastructure/local-pet-repository';
 import { fetchPet } from '../features/pet/infrastructure/pet-api';
-import { colors } from '../shared/theme/tokens';
+import { useTheme, useThemedStyles, type Theme } from '../shared/theme/ThemeProvider';
 
 export default function Index() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const { status } = useSession();
   const [hasPet, setHasPet] = useState<boolean>();
 
@@ -28,6 +30,6 @@ export default function Index() {
   return <Redirect href={hasPet ? '/(tabs)' : '/onboarding'} />;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
 });

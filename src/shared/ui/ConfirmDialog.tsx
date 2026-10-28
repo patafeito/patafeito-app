@@ -1,7 +1,10 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import { Image, Modal, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
-import { colors, radius, spacing, typography } from '../theme/tokens';
+import { StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { useThemedStyles, type Theme } from '../theme/ThemeProvider';
+import { spacing, typography } from '../theme/tokens';
 import { Button } from './Button';
+import { Dialog } from './Dialog';
+import { PixelImage } from './PixelImage';
 
 export type ConfirmRequest = {
   title: string;
@@ -18,28 +21,21 @@ export type ConfirmRequest = {
 
 /** Diálogo de confirmação no visual do app, no lugar do alerta nativo do sistema. */
 export function ConfirmDialog({ request, onClose }: { request?: ConfirmRequest; onClose: () => void }) {
-  return <Modal visible={!!request} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-    <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Fechar">
-      {request ? <Pressable style={styles.sheet} onPress={() => undefined} accessibilityViewIsModal>
-        {request.image ? <Image source={request.image} style={styles.image} resizeMode="contain" accessibilityIgnoresInvertColors /> : null}
-        <Text style={styles.title} accessibilityRole="header">{request.title}</Text>
-        {request.message ? <Text style={styles.message}>{request.message}</Text> : null}
-        {request.details}
-        <View style={styles.actions}>
-          <View style={styles.action}><Button label={request.cancelLabel ?? 'Cancelar'} variant="secondary" onPress={onClose} /></View>
-          <View style={styles.action}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => { onClose(); request.onConfirm(); }}
-              style={({ pressed }) => [styles.confirm, request.destructive && styles.destructive, pressed && styles.pressed]}
-            >
-              <Text style={styles.confirmLabel}>{request.confirmLabel}</Text>
-            </Pressable>
-          </View>
+  const styles = useThemedStyles(makeStyles);
+  return <Dialog visible={!!request} onClose={onClose}>
+    {request ? <>
+      {request.image ? <View style={styles.imageFrame}><PixelImage source={request.image} size={88} /></View> : null}
+      <Text style={styles.title} accessibilityRole="header">{request.title}</Text>
+      {request.message ? <Text style={styles.message}>{request.message}</Text> : null}
+      {request.details}
+      <View style={styles.actions}>
+        <View style={styles.action}><Button label={request.cancelLabel ?? 'Cancelar'} variant="secondary" onPress={onClose} /></View>
+        <View style={styles.action}>
+          <Button label={request.confirmLabel} variant={request.destructive ? 'danger' : 'primary'} onPress={() => { onClose(); request.onConfirm(); }} />
         </View>
-      </Pressable> : null}
-    </Pressable>
-  </Modal>;
+      </View>
+    </> : null}
+  </Dialog>;
 }
 
 /** `confirm(pedido)` abre o diálogo; renderize `dialog` uma vez na tela. */
@@ -50,19 +46,10 @@ export function useConfirm() {
   return { confirm, dialog };
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(5, 14, 26, 0.72)', justifyContent: 'center', padding: spacing.lg },
-  sheet: {
-    alignSelf: 'center', width: '100%', maxWidth: 420, gap: spacing.md, padding: spacing.lg,
-    borderRadius: radius.lg, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border,
-  },
-  image: { width: 88, height: 88, alignSelf: 'center' },
-  title: { ...typography.heading, color: colors.text, fontSize: 19, textAlign: 'center' },
-  message: { ...typography.body, color: colors.textMuted, fontSize: 15, lineHeight: 22, textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: spacing.sm },
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  imageFrame: { alignSelf: 'center', padding: spacing.sm, borderRadius: 999, backgroundColor: colors.surfaceMuted },
+  title: { ...typography.title, fontSize: 22, color: colors.text, textAlign: 'center' },
+  message: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   action: { flex: 1 },
-  confirm: { minHeight: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md, backgroundColor: colors.primary },
-  destructive: { backgroundColor: colors.danger },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
-  confirmLabel: { ...typography.label, color: colors.background, fontSize: 16 },
 });

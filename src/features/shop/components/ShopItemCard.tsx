@@ -1,8 +1,9 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { Badge } from '../../../shared/ui/Badge';
 import { Button } from '../../../shared/ui/Button';
-import { Card } from '../../../shared/ui/Card';
-import { colors, radius, spacing, typography } from '../../../shared/theme/tokens';
+import { PixelImage } from '../../../shared/ui/PixelImage';
+import { useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
+import { radius, spacing, typography } from '../../../shared/theme/tokens';
 import { coinIcon, itemImage, type ShopItem } from '../domain/catalog';
 
 type ShopItemCardProps = {
@@ -11,24 +12,32 @@ type ShopItemCardProps = {
   price?: number;
   quantity?: number;
   equipped?: boolean;
+  /** Na loja, sem moedas suficientes: o preço fica em vermelho e o botão explica. */
+  unaffordable?: boolean;
   actionLabel: string;
-  actionVariant?: 'primary' | 'secondary';
+  actionVariant?: 'primary' | 'secondary' | 'tertiary';
   disabled?: boolean;
   onAction: () => void;
 };
 
-export function CoinAmount({ value, size = 18 }: { value: number; size?: number }) {
-  return <View style={styles.coin}>
-    <Image source={coinIcon} style={{ width: size, height: size }} accessibilityIgnoresInvertColors />
-    <Text style={[styles.coinValue, { fontSize: size - 3 }]}>{value}</Text>
+export function CoinAmount({ value, size = 18, muted }: { value: number; size?: number; muted?: boolean }) {
+  const styles = useThemedStyles(makeStyles);
+  return <View style={styles.coin} accessible accessibilityLabel={`${value} ${value === 1 ? 'moeda' : 'moedas'}`}>
+    <PixelImage source={coinIcon} size={size} />
+    <Text style={[styles.coinValue, muted && styles.coinMuted, { fontSize: size - 3, lineHeight: size + 2 }]}>{value}</Text>
   </View>;
 }
 
-export function ShopItemCard({ item, price, quantity, equipped, actionLabel, actionVariant = 'primary', disabled, onAction }: ShopItemCardProps) {
+/** O item em pixel art é o protagonista; o cartão moderno organiza nome, efeito, preço e ação. */
+export function ShopItemCard({ item, price, quantity, equipped, unaffordable, actionLabel, actionVariant = 'primary', disabled, onAction }: ShopItemCardProps) {
+  const styles = useThemedStyles(makeStyles);
   const scene = item.slot === 'background';
   const image = itemImage(item.sku);
-  return <Card style={[styles.card, scene && styles.sceneCard]}>
-    {image ? <Image source={image} style={scene ? styles.scene : styles.icon} resizeMode={scene ? 'cover' : 'contain'} accessibilityIgnoresInvertColors /> : null}
+  return <View style={[styles.card, scene && styles.sceneCard, equipped && styles.equipped]}>
+    {image ? scene
+      ? <Image source={image} style={styles.scene} resizeMode="cover" accessibilityIgnoresInvertColors />
+      : <View style={styles.stage}><PixelImage source={image} size={80} /></View>
+      : null}
     <View style={styles.header}>
       <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
       {quantity !== undefined && item.consumable ? <Badge tone="neutral">x{quantity}</Badge> : null}
@@ -36,27 +45,29 @@ export function ShopItemCard({ item, price, quantity, equipped, actionLabel, act
     </View>
     <Text style={styles.description} numberOfLines={3}>{item.description}</Text>
     <View style={[styles.footer, scene && styles.sceneFooter]}>
-      {price !== undefined ? <CoinAmount value={price} /> : null}
+      {price !== undefined ? <CoinAmount value={price} muted={unaffordable} /> : null}
       <View style={scene ? styles.sceneAction : styles.action}>
-        <Button label={actionLabel} variant={actionVariant} onPress={onAction} disabled={disabled} />
+        <Button label={actionLabel} variant={actionVariant} size="compact" onPress={onAction} disabled={disabled} />
       </View>
     </View>
-  </Card>;
+  </View>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   // flexShrink e minWidth: sem eles a largura própria da imagem empurra o card para fora da tela.
-  card: { flexBasis: '47%', flexGrow: 1, flexShrink: 1, minWidth: 0, gap: spacing.sm, padding: spacing.md },
+  card: { flexBasis: '47%', flexGrow: 1, flexShrink: 1, minWidth: 0, gap: spacing.sm, padding: spacing.ms, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   sceneCard: { flexBasis: '100%' },
-  icon: { width: 72, height: 72, alignSelf: 'center' },
-  scene: { width: '100%', height: undefined, aspectRatio: 2, borderRadius: radius.sm },
+  equipped: { borderColor: colors.primary, borderWidth: 2 },
+  stage: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
+  scene: { width: '100%', height: undefined, aspectRatio: 2, borderRadius: radius.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
-  name: { ...typography.heading, color: colors.text, fontSize: 15, flexShrink: 1 },
-  description: { ...typography.body, color: colors.textMuted, fontSize: 13, lineHeight: 18, flexGrow: 1 },
+  name: { ...typography.subheading, color: colors.text, flexShrink: 1 },
+  description: { ...typography.caption, fontFamily: typography.bodySm.fontFamily, color: colors.textSecondary, flexGrow: 1 },
   footer: { gap: spacing.sm },
   sceneFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sceneAction: { flexGrow: 1, maxWidth: 200 },
   action: { alignSelf: 'stretch' },
   coin: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  coinValue: { ...typography.numeric, color: colors.experience },
+  coinValue: { ...typography.numeric, color: colors.rewardText },
+  coinMuted: { color: colors.danger },
 });

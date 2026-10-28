@@ -11,13 +11,16 @@ npm run lint
 npm run typecheck
 ```
 
-Configure `EXPO_PUBLIC_API_URL` para apontar à API. O padrão é `http://10.0.2.2:3000/api/v1`, que é como o emulador Android enxerga a API rodando em `localhost:3000`.
+Sem `.env`, o app chama a API no IP do computador que serve o bundle Expo, porta 3000. Para outro endereço, copie `.env.example` para `.env` e defina `EXPO_PUBLIC_API_URL`, por exemplo `http://10.0.2.2:3000/api/v1` no emulador Android ou `http://localhost:3000/api/v1` num aparelho com `adb reverse tcp:3000 tcp:3000`. `EXPO_PUBLIC_API_PORT` troca só a porta.
+
+O app ainda não tem testes automatizados nem CI; lint e typecheck são as verificações disponíveis.
 
 ## Como o app está organizado
 
-- **Rotas** (`src/app/`): `(auth)/sign-in` e `(auth)/sign-up`, `onboarding` e as abas Início, Tarefas, Pato, Foco e Perfil. `index.tsx` decide o destino inicial: sem sessão vai para o login, com sessão e sem pato vai para o onboarding.
+- **Rotas** (`src/app/`): `(auth)/sign-in` e `(auth)/sign-up`, `onboarding`, as abas Início, Tarefas, Pato, Foco e Perfil, e as telas empilhadas `shop` (loja) e `switch-pet` (troca de pato). `index.tsx` decide o destino inicial: sem sessão vai para o login, com sessão e sem pato vai para o onboarding.
 - **Sessão** (`src/shared/network/auth-session.ts`): access token em memória, refresh token no armazenamento seguro e renovação single-flight. `authorizedFetch` repete a chamada uma única vez após renovar.
 - **Banco local** (`src/db/`): SQLite migrado por `PRAGMA user_version`. Guarda tarefas, snapshot do pato, sessões de foco, inventário, notificações, perfil e a fila de sincronização.
+- **Tarefas**: tocar conclui ou desmarca; tocar e segurar numa pendente abre o editor (título, descrição, dificuldade e prazo; numa vencida, só reagendar ou excluir). Concluída só pode ser excluída. Uma edição feita antes da criação ou de outra edição sair da fila entra nessa mesma operação, para não gerar conflito de versão consigo mesma.
 - **Offline-first**: criar, concluir tarefa e concluir um ciclo de foco gravam no SQLite e enfileiram a operação. XP e moedas aparecem como estimativa (“a confirmar”) até o servidor responder; o saldo confirmado vem de `GET /rewards/balance`.
 - **Sincronização**: acontece ao abrir o app, ao voltar do segundo plano, após cada mutação e no gesto de puxar para atualizar na tela de Tarefas. O `opId` de cada operação garante que nada seja creditado duas vezes.
 
@@ -40,5 +43,11 @@ As folhas originais ficam em `assets/pets/`: `base1.png` e `base2.png` trazem os
 Na interface, `<PetSprite>` desenha o pato: ele respira continuamente, alterna `idle` e `blink` em intervalos irregulares e dá um pulinho ao entrar numa pose de comemoração. Tudo isso para quando o sistema pede movimento reduzido (`useReducedMotion`).
 
 `<PetStage>` é o pato em destaque na Início e na aba Pato: aceita toque (alterna as duas poses felizes), mostra o pensamento do momento e combina três fontes de estado, nesta prioridade — reação explícita (`celebrate()`, usado ao concluir tarefa ou ciclo de foco), toque, e humor ambiente derivado de fome, energia e felicidade por `moodFor()`. Como "feliz" é a situação normal, `useAmbientPose` alterna essa pose com o repouso para o pato continuar piscando em vez de congelar sorrindo.
+
+## Loja
+
+`npm run shop-assets` prepara as imagens de `assets/shop/` (comidas, poderes, moedas e cenários) a partir das folhas `assets/comidas.png`, `assets/poderes.png`, `assets/moedas.png` e `assets/cenarios/`. Rode o comando sempre que essa arte mudar.
+
+## Documentação
 
 A direção de produto e o plano de fases estão em [`docs/patafeito-ui-implementation.md`](docs/patafeito-ui-implementation.md); a arquitetura, em [`docs/Patafeito_Arquitetura_App.md`](docs/Patafeito_Arquitetura_App.md).

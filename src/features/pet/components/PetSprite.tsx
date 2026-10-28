@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet } from 'react-native';
+import { useIsFocused } from 'expo-router';
 import { useReducedMotion } from '../../../shared/hooks/use-reduced-motion';
 import type { SpeciesId } from '../../onboarding/domain/species';
 import { petSprite, petVisualStates, preloadSpecies, spriteAspectRatio, type PetVisualState } from '../domain/pet-sprites';
@@ -18,7 +19,9 @@ const breathCycleMs = 2600;
 
 export function PetSprite({ species, state = 'idle', height = 160, still = false }: PetSpriteProps) {
   const reducedMotion = useReducedMotion();
-  const animated = !still && !reducedMotion;
+  // Fora da tela visível, nada de loop: poupa bateria.
+  const focused = useIsFocused();
+  const animated = !still && !reducedMotion && focused;
   const [blinking, setBlinking] = useState(false);
   const blinkTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [breath] = useState(() => new Animated.Value(0));

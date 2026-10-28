@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { celebrate } from '../features/pet/application/pet-mood';
 import { cachedBalance, refreshBalance } from '../features/rewards/infrastructure/balance-repository';
 import { CoinAmount, ShopItemCard } from '../features/shop/components/ShopItemCard';
@@ -12,8 +12,10 @@ import { ApiError, NetworkError } from '../shared/network/api-client';
 import { Card } from '../shared/ui/Card';
 import { ChipGroup } from '../shared/ui/ChipGroup';
 import { useConfirm } from '../shared/ui/ConfirmDialog';
+import { PixelImage } from '../shared/ui/PixelImage';
 import { Screen } from '../shared/ui/Screen';
-import { colors, radius, spacing, typography } from '../shared/theme/tokens';
+import { useThemedStyles, type Theme } from '../shared/theme/ThemeProvider';
+import { radius, spacing, typography } from '../shared/theme/tokens';
 
 type ShopView = 'shop' | 'bag';
 
@@ -28,6 +30,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export default function ShopScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { data, reload } = useLocalData(loadShop);
   const [view, setView] = useState<ShopView>('shop');
   const [category, setCategory] = useState<ShopCategory>('food');
@@ -98,21 +101,22 @@ export default function ShopScreen() {
   }
 
   return <Screen edges={['left', 'right', 'bottom']}>
-    <Card tone="raised" style={styles.balance}>
-      <Image source={coinStackIcon} style={styles.balanceIcon} accessibilityIgnoresInvertColors />
+    <Card tone="elevated" style={styles.balance}>
+      <View style={styles.balanceStage}><PixelImage source={coinStackIcon} size={56} /></View>
       <View style={styles.balanceText}>
         <Text style={styles.muted}>Suas moedas</Text>
-        <CoinAmount value={data?.coins ?? 0} size={26} />
+        <CoinAmount value={data?.coins ?? 0} size={28} />
+        <Text style={styles.hint}>Ganhe concluindo tarefas, hábitos e ciclos de foco.</Text>
       </View>
     </Card>
 
-    {data?.boosts.active.length || data?.boosts.protectedDates.includes(localDateKey()) ? <Card style={styles.boosts}>
+    {data?.boosts.active.length || data?.boosts.protectedDates.includes(localDateKey()) ? <Card tone="muted" style={styles.boosts}>
       <Text style={styles.cardTitle}>Poderes ativos</Text>
       {data.boosts.active.map((boost, index) => <Text key={`${boost.effect}-${index}`} style={styles.muted}>{boostLabel(boost)}</Text>)}
       {data.boosts.protectedDates.includes(localDateKey()) ? <Text style={styles.muted}>Sequência protegida hoje</Text> : null}
     </Card> : null}
 
-    <ChipGroup options={[{ value: 'shop', label: 'Loja' }, { value: 'bag', label: 'Mochila' }]} value={view} onChange={(value: ShopView) => { setView(value); setMessage(undefined); }} />
+    <ChipGroup variant="segmented" options={[{ value: 'shop', label: 'Loja' }, { value: 'bag', label: 'Mochila' }]} value={view} onChange={(value: ShopView) => { setView(value); setMessage(undefined); }} />
     <ChipGroup options={categories} value={category} onChange={setCategory} />
     {message ? <Text style={styles.message}>{message}</Text> : null}
 
@@ -124,7 +128,8 @@ export default function ShopScreen() {
           item={item}
           price={item.priceCoins}
           quantity={item.consumable ? owned.get(item.id)?.quantity ?? 0 : undefined}
-          actionLabel={ownedScene ? 'Na mochila' : 'Comprar'}
+          actionLabel={ownedScene ? 'Na mochila' : (data?.coins ?? 0) < item.priceCoins ? 'Faltam moedas' : 'Comprar'}
+          unaffordable={!ownedScene && (data?.coins ?? 0) < item.priceCoins}
           disabled={ownedScene || busy === item.id || (data?.coins ?? 0) < item.priceCoins}
           onAction={() => buy(item)}
         />;
@@ -135,7 +140,7 @@ export default function ShopScreen() {
         const row = owned.get(item.id)!;
         return item.consumable
           ? <ShopItemCard key={item.id} item={item} quantity={row.quantity} actionLabel={item.slot === 'food' ? 'Dar ao pato' : 'Usar'} disabled={busy === item.id} onAction={() => use(item)} />
-          : <ShopItemCard key={item.id} item={item} equipped={row.equipped} actionLabel={row.equipped ? 'Tirar' : 'Usar cenário'} actionVariant={row.equipped ? 'secondary' : 'primary'} disabled={busy === item.id} onAction={() => toggleScene(item, row.equipped)} />;
+          : <ShopItemCard key={item.id} item={item} equipped={row.equipped} actionLabel={row.equipped ? 'Tirar' : 'Usar cenário'} actionVariant={row.equipped ? 'secondary' : 'tertiary'} disabled={busy === item.id} onAction={() => toggleScene(item, row.equipped)} />;
       })}
       {!bag.length ? <Text style={styles.muted}>Nada aqui ainda. Compre na loja e o item aparece na mochila.</Text> : null}
     </View>}
@@ -143,15 +148,16 @@ export default function ShopScreen() {
   </Screen>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   balance: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  balanceIcon: { width: 56, height: 56 },
-  balanceText: { gap: 2 },
+  balanceStage: { padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.rewardSoft },
+  balanceText: { gap: 2, flex: 1 },
+  hint: { ...typography.caption, color: colors.textSecondary },
   boosts: { gap: spacing.xs },
-  cardTitle: { ...typography.heading, color: colors.text, fontSize: 16 },
-  muted: { ...typography.body, color: colors.textMuted, fontSize: 14, lineHeight: 20 },
-  message: { ...typography.body, color: colors.success, fontSize: 14 },
+  cardTitle: { ...typography.heading, color: colors.text },
+  muted: { ...typography.bodySm, color: colors.textSecondary },
+  message: { ...typography.bodySm, color: colors.success },
   receipt: { gap: spacing.xs, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
   receiptRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.ms },
 });

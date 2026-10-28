@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { Link } from 'expo-router';
-import { BrandBanner } from '../../../shared/ui/BrandBanner';
 import { Button } from '../../../shared/ui/Button';
-import { Screen } from '../../../shared/ui/Screen';
 import { TextField } from '../../../shared/ui/TextField';
-import { colors, spacing, typography } from '../../../shared/theme/tokens';
+import { useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
+import { typography } from '../../../shared/theme/tokens';
 import { apiBaseUrl, ApiError, baseUrl, NetworkError } from '../../../shared/network/api-client';
 import { useSession } from '../application/session-context';
+import { AuthLayout } from '../components/AuthLayout';
 
 export function SignInScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { signIn } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,22 +34,23 @@ export function SignInScreen() {
     }
   }
 
-  return <Screen edges={['top', 'left', 'right', 'bottom']}>
-    <BrandBanner subtitle="Entre para reencontrar seu pato e continuar sua sequência." />
-    <Text style={styles.title}>Bem-vindo de volta</Text>
-    <TextField label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="voce@exemplo.com" />
-    <TextField label="Senha" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="Sua senha" />
-    {error ? <Text style={styles.error}>{error}</Text> : null}
+  return <AuthLayout
+    title="Bem-vindo de volta"
+    subtitle="Entre para reencontrar seu pato e continuar sua sequência."
+    error={error}
+    footer={<>
+      <Text style={styles.footer}>Ainda não tem conta? <Link href="/sign-up" style={styles.link}>Criar conta</Link></Text>
+      {__DEV__ ? <Text style={styles.debug}>API: {address}</Text> : null}
+    </>}
+  >
+    <TextField label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" placeholder="voce@exemplo.com" returnKeyType="next" />
+    <TextField label="Senha" value={password} onChangeText={setPassword} password autoComplete="current-password" textContentType="password" placeholder="Sua senha" returnKeyType="go" onSubmitEditing={() => void submit()} />
     <Button label={submitting ? 'Entrando…' : 'Entrar'} disabled={submitting} onPress={() => void submit()} />
-    <Link href="/sign-up" style={styles.link}>Ainda não tenho conta</Link>
-    {__DEV__ ? <Text style={styles.debug}>API: {address}</Text> : null}
-  </Screen>;
+  </AuthLayout>;
 }
 
-const styles = StyleSheet.create({
-  title: { ...typography.display, color: colors.text, fontSize: 28 },
-  body: { ...typography.body, color: colors.textMuted, fontSize: 16, lineHeight: 24 },
-  error: { ...typography.body, color: colors.danger, fontSize: 14 },
-  link: { ...typography.label, color: colors.primary, fontSize: 15, textAlign: 'center', paddingVertical: spacing.md },
-  debug: { ...typography.body, color: colors.textMuted, fontSize: 11, textAlign: 'center' },
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  footer: { ...typography.bodySm, color: colors.textSecondary, textAlign: 'center' },
+  link: { ...typography.label, color: colors.primary },
+  debug: { ...typography.caption, color: colors.textDisabled, textAlign: 'center' },
 });

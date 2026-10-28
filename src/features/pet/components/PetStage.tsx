@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Badge } from '../../../shared/ui/Badge';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { Card } from '../../../shared/ui/Card';
 import { DuckStatus } from '../../../shared/ui/DuckStatus';
 import { ExperienceBar } from '../../../shared/ui/ExperienceBar';
-import { colors, radius, spacing, typography } from '../../../shared/theme/tokens';
+import { SceneFrame } from '../../../shared/ui/SceneFrame';
+import { useTheme, useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
+import { radius, spacing, typography } from '../../../shared/theme/tokens';
 import { speciesById } from '../../onboarding/domain/species';
 import { itemImage } from '../../shop/domain/catalog';
 import { usePetReaction } from '../application/pet-mood';
@@ -19,9 +21,12 @@ type PetStageProps = {
   pet: Pet;
   streak: number;
   pendingXp?: number;
-  spriteHeight?: number;
+  /** Largura/altura do palco: mais largo no Início, mais alto na página do pato. */
+  aspectRatio?: number;
   /** Sku do cenário equipado na loja; sem ele, o palco fica liso. */
   backgroundSku?: string;
+  /** No Início, os status ficam na página do pato para não competir com as tarefas. */
+  showStats?: boolean;
 };
 
 const petThoughts: Record<PetVisualState, string> = {
@@ -37,7 +42,9 @@ const petThoughts: Record<PetVisualState, string> = {
 const petThoughtsWhenTouched = ['Oi!', 'Mais carinho!', 'Hehe, faz cócegas.', 'Tô pronto pro próximo passo.'];
 const touchReactionMs = 1400;
 
-export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220, backgroundSku }: PetStageProps) {
+export function PetStage({ pet, streak, pendingXp = 0, aspectRatio = 1.25, backgroundSku, showStats = true }: PetStageProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const background = backgroundSku ? itemImage(backgroundSku) : undefined;
   const species = speciesById(pet.speciesId);
   const progress = levelProgress(pet.xpTotal);
@@ -45,6 +52,10 @@ export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220, backg
   const [touch, setTouch] = useState<{ state: PetVisualState; thought: string }>();
   const touchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const touchCount = useRef(0);
+  const [stageHeight, setStageHeight] = useState(240);
+  // O pato ocupa ~70% da altura e pisa no chão do cenário (≈9% acima da borda de baixo).
+  const spriteHeight = Math.round(stageHeight * 0.7);
+  const groundOffset = Math.round(stageHeight * 0.09);
 
   useEffect(() => () => clearTimeout(touchTimer.current), []);
 
@@ -65,52 +76,63 @@ export function PetStage({ pet, streak, pendingXp = 0, spriteHeight = 220, backg
     touchTimer.current = setTimeout(() => setTouch(undefined), touchReactionMs);
   }
 
-  return <Card tone="raised" style={styles.card}>
-    <View style={styles.header}>
-      <View style={styles.identity}>
-        <Text style={styles.name}>{pet.name}</Text>
-        <Text style={styles.species}>{species.name} · {species.tagline}</Text>
-      </View>
-      {streak > 0 ? <Badge tone="experience">{streak} {streak === 1 ? 'dia' : 'dias'} seguidos</Badge> : null}
-    </View>
-
+  return <Card tone="elevated" style={styles.card}>
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Fazer carinho em ${pet.name}`}
       accessibilityHint="O pato reage ao toque."
       onPress={greet}
-      style={styles.stage}
     >
-      {background ? <Image source={background} style={styles.scene} resizeMode="cover" accessibilityIgnoresInvertColors /> : null}
-      <View style={[styles.ground, background ? styles.groundOnScene : undefined, { width: spriteHeight * 0.72 }]} />
-      <PetSprite species={species.id} state={state} height={spriteHeight} />
+      <SceneFrame scene={background} aspectRatio={aspectRatio} onHeightChange={setStageHeight}>
+        <View style={[styles.pet, { marginBottom: groundOffset }]}>
+          <View style={[styles.shadow, { width: spriteHeight * 0.5, height: Math.max(8, spriteHeight * 0.07), bottom: -spriteHeight * 0.025 }]} />
+          <PetSprite species={species.id} state={state} height={spriteHeight} />
+        </View>
+        {streak > 0 ? <View style={styles.streak} accessible accessibilityLabel={`${streak} ${streak === 1 ? 'dia' : 'dias'} seguidos`}>
+          <Ionicons name="flame" size={14} color={colors.tertiary} />
+          <Text style={styles.streakText}>{streak}</Text>
+        </View> : null}
+      </SceneFrame>
     </Pressable>
 
-    <Text style={styles.thought}>{thought}</Text>
+    <View style={styles.header}>
+      <View style={styles.identity}>
+        <Text style={styles.name}>{pet.name}</Text>
+        <Text style={styles.species}>{species.name} · {species.tagline}</Text>
+      </View>
+    </View>
+
+    <View style={styles.bubble} accessibilityLiveRegion="polite">
+      <View style={styles.bubbleTail} />
+      <Text style={styles.thought}>{thought}</Text>
+    </View>
 
     <ExperienceBar level={progress.level} value={progress.value} nextLevelAt={progress.nextLevelAt} />
     {pendingXp > 0 ? <Text style={styles.pending}>+{pendingXp} XP aguardando confirmação do servidor.</Text> : null}
 
-    <View style={styles.statuses}>
-      <View style={styles.status}><DuckStatus label="Saciedade" value={stats.hunger} icon="restaurant-outline" color={colors.experience} /></View>
-      <View style={styles.status}><DuckStatus label="Energia" value={stats.energy} icon="flash-outline" color={colors.primary} /></View>
-      <View style={styles.status}><DuckStatus label="Felicidade" value={stats.happiness} icon="heart-outline" color={colors.success} /></View>
-    </View>
+    {showStats ? <View style={styles.statuses}>
+      <View style={styles.status}><DuckStatus label="Saciedade" value={stats.hunger} icon="restaurant" tone="xp" /></View>
+      <View style={styles.status}><DuckStatus label="Energia" value={stats.energy} icon="flash" tone="water" /></View>
+      <View style={styles.status}><DuckStatus label="Felicidade" value={stats.happiness} icon="heart" tone="habit" /></View>
+    </View> : null}
   </Card>;
 }
 
-const styles = StyleSheet.create({
-  card: { gap: spacing.md, alignItems: 'stretch' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  card: { gap: spacing.ms, padding: spacing.ms },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingHorizontal: spacing.xs },
   identity: { flexShrink: 1 },
-  name: { ...typography.display, color: colors.text, fontSize: 24 },
-  species: { ...typography.body, color: colors.textMuted, fontSize: 14 },
-  stage: { alignItems: 'center', justifyContent: 'flex-end', paddingTop: spacing.sm, borderRadius: radius.md, overflow: 'hidden' },
-  scene: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: undefined, height: undefined },
-  groundOnScene: { backgroundColor: 'rgba(0, 0, 0, 0.18)', bottom: spacing.sm },
-  ground: { height: 14, borderRadius: radius.pill, backgroundColor: colors.surfaceMuted, position: 'absolute', bottom: 2, opacity: 0.9 },
-  thought: { ...typography.body, color: colors.textMuted, fontSize: 15, textAlign: 'center' },
-  pending: { ...typography.body, color: colors.experience, fontSize: 13, textAlign: 'center' },
-  statuses: { flexDirection: 'row', gap: spacing.md },
+  name: { ...typography.title, color: colors.text },
+  species: { ...typography.bodySm, color: colors.textSecondary },
+  pet: { alignItems: 'center', justifyContent: 'flex-end' },
+  // Sombra elíptica sob os pés; fica atrás do sprite e não acompanha a respiração.
+  shadow: { position: 'absolute', alignSelf: 'center', borderRadius: radius.pill, backgroundColor: 'rgba(16, 35, 58, 0.3)', transform: [{ scaleY: 0.6 }] },
+  streak: { position: 'absolute', top: spacing.sm, left: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.surfaceElevated },
+  streakText: { ...typography.numeric, fontSize: 13, lineHeight: 18, color: colors.text },
+  bubble: { alignSelf: 'flex-start', maxWidth: '100%', marginLeft: spacing.xs, paddingHorizontal: spacing.ms, paddingVertical: spacing.sm, borderRadius: radius.md, borderTopLeftRadius: radius.xs, backgroundColor: colors.surfaceMuted },
+  bubbleTail: { position: 'absolute', top: -6, left: 10, width: 12, height: 12, backgroundColor: colors.surfaceMuted, transform: [{ rotate: '45deg' }] },
+  thought: { ...typography.bodySm, color: colors.text },
+  pending: { ...typography.caption, color: colors.rewardText },
+  statuses: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xs, paddingBottom: spacing.xs },
   status: { flex: 1 },
 });

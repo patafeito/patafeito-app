@@ -1,6 +1,6 @@
 import { getDatabase } from '../../../db/client';
 import { deterministicId, newId } from '../../../shared/utils/identifier';
-import { discardPendingOperation, enqueueOperation } from '../../sync/infrastructure/sync-repository';
+import { discardPendingOperation, enqueueOperation, mergeIntoPendingTaskOperation } from '../../sync/infrastructure/sync-repository';
 import { dayKey, nextOccurrence, type RecurrenceRule } from '../domain/recurrence';
 import { estimatedReward, isOverdue, type Task, type TaskDifficulty, type TaskStatus } from '../domain/task';
 
@@ -80,15 +80,26 @@ export async function ensureRecurringOccurrences(now = new Date()) {
   return created;
 }
 
-export async function updateLocalTask(task: Task, changes: { title?: string; difficulty?: TaskDifficulty; dueAt?: string | null }) {
+export type TaskChanges = { title?: string; description?: string | null; difficulty?: TaskDifficulty; dueAt?: string | null };
+
+/**
+ * Campos ausentes ficam como estão; `dueAt: null` tira o prazo.
+ * Enquanto a criação ou uma edição anterior não sai da fila, a mudança entra nela em vez de virar outra operação.
+ */
+export async function updateLocalTask(task: Task, changes: TaskChanges) {
   const database = await getDatabase();
-  const current = await database.getFirstAsync<{ version: number }>('SELECT version FROM local_tasks WHERE id = ?', task.id);
-  if (!current) throw new Error('Tarefa local não encontrada.');
-  await database.runAsync(
-    "UPDATE local_tasks SET title = COALESCE(?, title), difficulty = COALESCE(?, difficulty), due_at = COALESCE(?, due_at), updated_at = ?, sync_state = 'pending' WHERE id = ?",
-    changes.title ?? null, changes.difficulty ?? null, changes.dueAt ?? null, new Date().toISOString(), task.id,
+  const current = await database.getFirstAsync<{ version: number } & Required<Pick<Task, 'title' | 'difficulty'>> & Pick<Task, 'description' | 'dueAt'>>(
+    'SELECT version, title, description, difficulty, due_at AS dueAt FROM local_tasks WHERE id = ?', task.id,
   );
-  await enqueueOperation('task.update', { ...changes }, { resourceId: task.id, baseVersion: current.version });
+  if (!current) throw new Error('Tarefa local não encontrada.');
+  const next = { ...current, ...changes };
+  await database.runAsync(
+    "UPDATE local_tasks SET title = ?, description = ?, difficulty = ?, due_at = ?, updated_at = ?, sync_state = 'pending' WHERE id = ?",
+    next.title, next.description ?? null, next.difficulty, next.dueAt ?? null, new Date().toISOString(), task.id,
+  );
+  if (await mergeIntoPendingTaskOperation(task.id, changes)) return;
+  // Versão 0 = criada aqui; se a criação já foi aceita, o servidor está na versão 1.
+  await enqueueOperation('task.update', { ...changes }, { resourceId: task.id, baseVersion: Math.max(current.version, 1) });
 }
 
 export async function completeLocalTask(task: Task) {

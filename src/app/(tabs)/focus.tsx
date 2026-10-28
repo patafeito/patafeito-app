@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { useFocusSession } from '../../features/focus/application/use-focus-session';
 import {
   BREAK_MINUTES_RANGE, FOCUS_MINUTES_RANGE, focusPresets, focusRewards, formatRemaining, parseMinutes,
@@ -16,12 +17,13 @@ import { loadLocalPet } from '../../features/pet/infrastructure/local-pet-reposi
 import { listLocalTasks } from '../../features/tasks/infrastructure/local-task-repository';
 import { useLocalData } from '../../shared/hooks/use-local-data';
 import { Button } from '../../shared/ui/Button';
-import { Card } from '../../shared/ui/Card';
 import { ChipGroup } from '../../shared/ui/ChipGroup';
+import { ScreenHeader } from '../../shared/ui/Headers';
 import { ProgressBar } from '../../shared/ui/ProgressBar';
 import { Screen } from '../../shared/ui/Screen';
 import { TextField } from '../../shared/ui/TextField';
-import { colors, spacing, typography } from '../../shared/theme/tokens';
+import { useTheme, useThemedStyles, type Theme } from '../../shared/theme/ThemeProvider';
+import { radius, spacing, typography } from '../../shared/theme/tokens';
 
 const presetOptions: { value: FocusPresetId; label: string }[] = [
   ...(['classic', 'short', 'long'] as const).map((value) => {
@@ -37,6 +39,8 @@ async function loadFocusContext() {
 }
 
 export default function FocusScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const { session, remaining, breakEndsAt, breakRemaining, start, pause, resume, cancel, complete, endBreak } = useFocusSession();
   const { data, reload } = useLocalData(loadFocusContext);
   const [taskId, setTaskId] = useState<string>('none');
@@ -105,87 +109,103 @@ export default function FocusScreen() {
       : !session ? ambient
         : session.status === 'paused' ? 'tired' : 'focus');
 
-  return <Screen>
-    <Text style={styles.title}>Foco</Text>
-    <Card tone="raised" style={styles.timerCard}>
-      {data?.pet ? <PetSprite species={speciesById(data.pet.speciesId).id} state={petState} height={132} /> : null}
-      {breaking ? <Text style={styles.phase}>Pausa</Text> : null}
-      <Text style={styles.timer}>{formatRemaining(session ? remaining : breaking ? breakRemaining : plannedSeconds)}</Text>
+  const running = !!session && !finished;
+  const phaseLabel = breaking ? 'Pausa' : breakOver ? 'Pausa encerrada' : finished ? 'Ciclo completo' : session?.status === 'paused' ? 'Pausado' : session ? 'Em foco' : 'Pronto para começar';
+
+  // Tela calma: fundo liso, sem cenário, sem cards competindo com o relógio.
+  return <Screen edges={['top', 'left', 'right']}>
+    <ScreenHeader title="Foco" subtitle={running ? undefined : `${species.name} acompanha seus ciclos`} />
+
+    <View style={styles.timerArea}>
+      {data?.pet ? <PetSprite species={speciesById(data.pet.speciesId).id} state={petState} height={running ? 104 : 120} /> : null}
+      <View style={[styles.phase, (breaking || finished) && styles.phaseRest]}>
+        <Text style={[styles.phaseText, (breaking || finished) && styles.phaseTextRest]}>{phaseLabel}</Text>
+      </View>
+      <Text style={styles.timer} accessibilityRole="timer" accessibilityLabel={`Tempo restante ${formatRemaining(session ? remaining : breaking ? breakRemaining : plannedSeconds)}`}>
+        {formatRemaining(session ? remaining : breaking ? breakRemaining : plannedSeconds)}
+      </Text>
       <ProgressBar
         value={session ? elapsed : breaking ? breakSeconds - breakRemaining : 0}
         max={breaking ? breakSeconds : durationSeconds}
-        color={finished || breaking ? colors.success : colors.primary}
-        height={10}
+        tone={finished || breaking ? 'habit' : 'water'}
+        height={12}
+        label="Progresso do ciclo"
       />
       <Text style={styles.caption}>
-        {breakOver ? 'Pausa encerrada. Bora para o próximo ciclo?'
+        {breakOver ? 'Bora para o próximo ciclo?'
           : onBreak ? 'Respire, beba água, alongue. O próximo ciclo espera por você.'
             : !session ? `Um ciclo de ${plannedSeconds / 60} minutos vale ${reward.xp} XP e ${reward.coins} moedas.`
-              : finished ? 'Ciclo completo. Registre para receber a recompensa.'
-                : session.status === 'paused' ? 'Pausado. Retome quando estiver pronto.'
-                  : linkedTask ? `Focando em “${linkedTask.title}”.` : 'Em foco.'}
+              : finished ? 'Registre para receber a recompensa.'
+                : session.status === 'paused' ? 'Retome quando estiver pronto.'
+                  : linkedTask ? `Focando em “${linkedTask.title}”.` : 'Um passo de cada vez.'}
       </Text>
-    </Card>
+    </View>
 
     {breaking ? <Button label="Pular pausa" variant="secondary" onPress={() => void endBreak()} />
       : !session ? <>
-        <ChipGroup label="Ritmo" options={presetOptions} value={preset} onChange={choosePreset} />
-        {preset === 'custom' ? <View style={styles.customRow}>
-          <View style={styles.customField}>
-            <TextField
-              label="Foco (min)"
-              value={customFocus}
-              onChangeText={(text) => { setCustomFocus(text); setFocusError(undefined); }}
-              keyboardType="number-pad"
-              maxLength={3}
-              error={focusError}
-              hint={`De ${FOCUS_MINUTES_RANGE.min} a ${FOCUS_MINUTES_RANGE.max}`}
-            />
-          </View>
-          <View style={styles.customField}>
-            <TextField
-              label="Pausa (min)"
-              value={customBreak}
-              onChangeText={(text) => { setCustomBreak(text); setBreakError(undefined); }}
-              keyboardType="number-pad"
-              maxLength={2}
-              error={breakError}
-              hint={`De ${BREAK_MINUTES_RANGE.min} a ${BREAK_MINUTES_RANGE.max}`}
-            />
-          </View>
-        </View> : null}
-        {data?.tasks.length ? <ChipGroup
-          label="Vincular a uma tarefa (opcional)"
-          options={[{ value: 'none', label: 'Sem tarefa' }, ...data.tasks.map((task) => ({ value: task.id, label: task.title.slice(0, 24) }))]}
-          value={taskId}
-          onChange={setTaskId}
-        /> : null}
-        <Button label="Iniciar foco" onPress={() => void begin()} />
-      </> : finished ? <Button label="Registrar ciclo" onPress={() => void finish()} />
-        : <>
-          <Button label={session.status === 'paused' ? 'Retomar' : 'Pausar'} variant="secondary" onPress={() => void (session.status === 'paused' ? resume() : pause())} />
-          <Button label="Cancelar ciclo" variant="ghost" onPress={() => void cancel()} />
-        </>}
+        <Button label="Iniciar foco" icon="play" onPress={() => void begin()} />
+        <View style={styles.settings}>
+          <ChipGroup label="Ritmo" options={presetOptions} value={preset} onChange={choosePreset} />
+          {preset === 'custom' ? <View style={styles.customRow}>
+            <View style={styles.customField}>
+              <TextField
+                label="Foco (min)"
+                value={customFocus}
+                onChangeText={(text) => { setCustomFocus(text); setFocusError(undefined); }}
+                keyboardType="number-pad"
+                maxLength={3}
+                error={focusError}
+                hint={`De ${FOCUS_MINUTES_RANGE.min} a ${FOCUS_MINUTES_RANGE.max}`}
+              />
+            </View>
+            <View style={styles.customField}>
+              <TextField
+                label="Pausa (min)"
+                value={customBreak}
+                onChangeText={(text) => { setCustomBreak(text); setBreakError(undefined); }}
+                keyboardType="number-pad"
+                maxLength={2}
+                error={breakError}
+                hint={`De ${BREAK_MINUTES_RANGE.min} a ${BREAK_MINUTES_RANGE.max}`}
+              />
+            </View>
+          </View> : null}
+          {data?.tasks.length ? <ChipGroup
+            label="Vincular a uma tarefa (opcional)"
+            options={[{ value: 'none', label: 'Sem tarefa' }, ...data.tasks.map((task) => ({ value: task.id, label: task.title.slice(0, 24) }))]}
+            value={taskId}
+            onChange={setTaskId}
+          /> : null}
+        </View>
+      </> : finished ? <Button label="Registrar ciclo" icon="checkmark" onPress={() => void finish()} />
+        : <View style={styles.controls}>
+          <View style={styles.control}><Button label={session.status === 'paused' ? 'Retomar' : 'Pausar'} icon={session.status === 'paused' ? 'play' : 'pause'} variant="secondary" onPress={() => void (session.status === 'paused' ? resume() : pause())} /></View>
+          <View style={styles.control}><Button label="Cancelar" variant="ghost" onPress={() => void cancel()} /></View>
+        </View>}
 
-    {message ? <Text style={styles.message}>{message}</Text> : null}
+    {message ? <Text style={styles.message} accessibilityLiveRegion="polite">{message}</Text> : null}
 
-    <Card>
-      <Text style={styles.cardTitle}>{species.name} acompanha</Text>
-      <Text style={styles.muted}>{species.mission}</Text>
-      <Text style={styles.muted}>Ciclos concluídos neste aparelho: {data?.completedSessions ?? 0}</Text>
-    </Card>
+    {!running ? <View style={styles.footer}>
+      <Ionicons name="water-outline" size={16} color={colors.textSecondary} />
+      <Text style={styles.footerText}>{data?.completedSessions ?? 0} {data?.completedSessions === 1 ? 'ciclo concluído' : 'ciclos concluídos'} neste aparelho · {species.mission}</Text>
+    </View> : null}
   </Screen>;
 }
 
-const styles = StyleSheet.create({
-  title: { ...typography.display, color: colors.text, fontSize: 26 },
-  timerCard: { alignItems: 'stretch', gap: spacing.md },
-  phase: { ...typography.label, color: colors.success, fontSize: 14, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1 },
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  timerArea: { alignItems: 'stretch', gap: spacing.md, paddingVertical: spacing.lg },
+  phase: { alignSelf: 'center', paddingHorizontal: spacing.ms, paddingVertical: spacing.xs, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
+  phaseRest: { backgroundColor: colors.successSoft },
+  phaseText: { ...typography.caption, color: colors.onPrimarySoft, textTransform: 'uppercase', letterSpacing: 1 },
+  phaseTextRest: { color: colors.onSuccessSoft },
+  timer: { ...typography.timer, color: colors.text, textAlign: 'center' },
+  caption: { ...typography.bodySm, color: colors.textSecondary, textAlign: 'center' },
+  settings: { gap: spacing.md, marginTop: spacing.sm },
   customRow: { flexDirection: 'row', gap: spacing.md },
   customField: { flex: 1 },
-  timer: { ...typography.numeric, color: colors.text, fontSize: 64, textAlign: 'center' },
-  caption: { ...typography.body, color: colors.textMuted, textAlign: 'center', fontSize: 14, lineHeight: 20 },
-  cardTitle: { ...typography.heading, color: colors.text, fontSize: 17, marginBottom: spacing.xs },
-  muted: { ...typography.body, color: colors.textMuted, fontSize: 14, lineHeight: 21 },
-  message: { ...typography.body, color: colors.success, fontSize: 14 },
+  controls: { flexDirection: 'row', gap: spacing.sm },
+  control: { flex: 1 },
+  message: { ...typography.bodySm, color: colors.success, textAlign: 'center' },
+  footer: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, marginTop: spacing.sm },
+  footerText: { ...typography.caption, color: colors.textSecondary, flex: 1 },
 });

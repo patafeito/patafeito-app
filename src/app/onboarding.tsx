@@ -10,9 +10,12 @@ import { Button } from '../shared/ui/Button';
 import { Card } from '../shared/ui/Card';
 import { Screen } from '../shared/ui/Screen';
 import { TextField } from '../shared/ui/TextField';
-import { colors, spacing, typography } from '../shared/theme/tokens';
+import { useTheme, useThemedStyles, type Theme } from '../shared/theme/ThemeProvider';
+import { spacing, typography } from '../shared/theme/tokens';
 
 export default function Onboarding() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const [selected, setSelected] = useState<SpeciesId>('pingo');
   const [name, setName] = useState('');
   const [error, setError] = useState<string>();
@@ -43,7 +46,7 @@ export default function Onboarding() {
     {speciesList.map((item) => {
       const active = item.id === selected;
       return <Pressable key={item.id} accessibilityRole="radio" accessibilityState={{ selected: active }} onPress={() => setSelected(item.id)}>
-        <Card tone={active ? 'primary' : 'default'} style={[styles.option, active && { borderColor: item.accent }]}>
+        <Card tone={active ? 'primary' : 'default'} style={[styles.option, active && { borderColor: colors[item.accent] }]}>
           <PetSprite species={item.id} state={active ? 'cheer' : 'idle'} height={96} still={!active} />
           <View style={styles.optionText}>
             <Text style={styles.optionName}>{item.name} <Text style={styles.optionTagline}>— {item.tagline}</Text></Text>
@@ -68,13 +71,13 @@ export default function Onboarding() {
   </Screen>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   eyebrow: { ...typography.label, color: colors.primary, letterSpacing: 1 },
-  title: { ...typography.display, color: colors.text, fontSize: 28 },
-  body: { ...typography.body, color: colors.textMuted, fontSize: 16, lineHeight: 24 },
+  title: { ...typography.title, color: colors.text, fontSize: 28, lineHeight: 34 },
+  body: { ...typography.body, color: colors.textSecondary },
   option: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   optionText: { flex: 1, gap: spacing.xs },
-  optionName: { ...typography.heading, color: colors.text, fontSize: 18 },
-  optionTagline: { ...typography.body, color: colors.textMuted, fontSize: 14 },
-  optionBody: { ...typography.body, color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+  optionName: { ...typography.heading, color: colors.text },
+  optionTagline: { ...typography.bodySm, color: colors.textSecondary },
+  optionBody: { ...typography.bodySm, color: colors.textSecondary },
 });

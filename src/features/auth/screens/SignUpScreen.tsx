@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { Link } from 'expo-router';
-import { BrandBanner } from '../../../shared/ui/BrandBanner';
 import { Button } from '../../../shared/ui/Button';
-import { Screen } from '../../../shared/ui/Screen';
 import { TextField } from '../../../shared/ui/TextField';
-import { colors, spacing, typography } from '../../../shared/theme/tokens';
+import { useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
+import { typography } from '../../../shared/theme/tokens';
 import { ApiError, NetworkError } from '../../../shared/network/api-client';
 import { useSession } from '../application/session-context';
+import { AuthLayout } from '../components/AuthLayout';
 
 export function SignUpScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { signUp } = useSession();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -33,21 +34,20 @@ export function SignUpScreen() {
     }
   }
 
-  return <Screen edges={['top', 'left', 'right', 'bottom']}>
-    <BrandBanner subtitle="Um pato vai acompanhar cada pequena vitória da sua rotina." />
-    <Text style={styles.title}>Crie sua conta</Text>
-    <TextField label="Como podemos te chamar?" value={displayName} onChangeText={setDisplayName} autoComplete="name" placeholder="Seu nome" maxLength={80} />
-    <TextField label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="voce@exemplo.com" />
-    <TextField label="Senha" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" hint="Ao menos 8 caracteres." placeholder="Crie uma senha" />
-    {error ? <Text style={styles.error}>{error}</Text> : null}
+  return <AuthLayout
+    title="Crie sua conta"
+    subtitle="Um pato vai acompanhar cada pequena vitória da sua rotina."
+    error={error}
+    footer={<Text style={styles.footer}>Já tem conta? <Link href="/sign-in" style={styles.link}>Entrar</Link></Text>}
+  >
+    <TextField label="Como podemos te chamar?" value={displayName} onChangeText={setDisplayName} autoComplete="name" textContentType="name" placeholder="Seu nome" maxLength={80} returnKeyType="next" />
+    <TextField label="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" placeholder="voce@exemplo.com" returnKeyType="next" />
+    <TextField label="Senha" value={password} onChangeText={setPassword} password autoComplete="new-password" textContentType="newPassword" hint="Ao menos 8 caracteres." placeholder="Crie uma senha" returnKeyType="go" onSubmitEditing={() => void submit()} />
     <Button label={submitting ? 'Criando…' : 'Criar conta'} disabled={submitting} onPress={() => void submit()} />
-    <Link href="/sign-in" style={styles.link}>Já tenho conta</Link>
-  </Screen>;
+  </AuthLayout>;
 }
 
-const styles = StyleSheet.create({
-  title: { ...typography.display, color: colors.text, fontSize: 28 },
-  body: { ...typography.body, color: colors.textMuted, fontSize: 16, lineHeight: 24 },
-  error: { ...typography.body, color: colors.danger, fontSize: 14 },
-  link: { ...typography.label, color: colors.primary, fontSize: 15, textAlign: 'center', paddingVertical: spacing.md },
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  footer: { ...typography.bodySm, color: colors.textSecondary, textAlign: 'center' },
+  link: { ...typography.label, color: colors.primary },
 });

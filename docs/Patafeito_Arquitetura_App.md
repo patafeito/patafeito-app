@@ -2,7 +2,7 @@
 
 Documento técnico de arquitetura • versão 1.0 • 12/10/2026
 
-Status: proposta arquitetural para validação pela equipe. Base: Roteiro do Projeto de Desenvolvimento de Solução Computacional (43 páginas).
+Status: arquitetura-alvo com o ciclo central do MVP implementado; o que já existe e o que falta está em “Situação em 27/10/2026”, na seção 14. Base: Roteiro do Projeto de Desenvolvimento de Solução Computacional (43 páginas).
 
 Convenção: \[BASE\] = previsto no roteiro; \[PROPOSTA\] = detalhamento técnico recomendado; \[DECIDIR\] = item em aberto.
 
@@ -253,6 +253,12 @@ Convenção: \[BASE\] = previsto no roteiro; \[PROPOSTA\] = detalhamento técnic
 
 - Fase 5 — sync e conflitos, sociais opcionais, acessibilidade, desempenho e testes E2E.
 
+**Situação em 27/10/2026:**
+
+- **Feito:** fases 1 a 3; loja e inventário da fase 4; fila de sync com retry/backoff, idempotência por `opId` e renovação de token single-flight da fase 5; edição e reagendamento de tarefas.
+- **Feito de outro jeito:** a estrutura segue `features/<x>/{application,domain,infrastructure,components}` em vez de `viewmodels/data`. A navegação usa Expo Router em `src/app/`. As animações do pato usam quadros PNG com `Animated` (sem Lottie/Rive) e respeitam o movimento reduzido.
+- **Pendente:** relatórios (`features/reports/` vazio), amigos/social (`features/friends/` vazio), tela de notificações (os dados já sincronizam), lembretes locais/push, UI de resolução de conflitos (conflitos ficam marcados na fila e o pull traz a versão do servidor), busca e categoria de tarefas, fontes da identidade, testes automatizados, CI e variantes dev/staging/prod.
+
 ## 15. Critérios de pronto e dúvidas
 
 - Uma tarefa criada offline permanece após reiniciar o app e sincroniza sem duplicar quando a rede volta.
@@ -269,4 +275,4 @@ Convenção: \[BASE\] = previsto no roteiro; \[PROPOSTA\] = detalhamento técnic
 
 ## 16. Rastreabilidade e limites
 
-Fonte principal: roteiro da equipe, sobretudo pp. 2–10 (requisitos), 11–24 (protótipos e fluxos), 25–30 (arquitetura/stack) e 31–35 (dados). Telas, código, testes e operações ainda devem ser validados com implementação real; as recomendações desta especificação não constituem funcionalidades entregues.
+Fonte principal: roteiro da equipe, sobretudo pp. 2–10 (requisitos), 11–24 (protótipos e fluxos), 25–30 (arquitetura/stack) e 31–35 (dados). As recomendações desta especificação só valem como entregues quando constam na situação da seção 14; o restante continua sendo proposta.

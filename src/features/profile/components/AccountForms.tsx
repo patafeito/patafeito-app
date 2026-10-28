@@ -5,7 +5,8 @@ import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
 import { useConfirm } from '../../../shared/ui/ConfirmDialog';
 import { TextField } from '../../../shared/ui/TextField';
-import { colors, spacing, typography } from '../../../shared/theme/tokens';
+import { useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
+import { spacing, typography } from '../../../shared/theme/tokens';
 import { useSession } from '../../auth/application/session-context';
 import { changePassword, PendingChangesError, resetProgress, updateProfile } from '../application/account';
 import { validateDisplayName, validateEmail, validateNewPassword } from '../domain/account';
@@ -16,6 +17,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function EditProfileCard() {
+  const styles = useThemedStyles(makeStyles);
   const { user, updateUser } = useSession();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -61,7 +63,7 @@ export function EditProfileCard() {
     }
   }
 
-  return <Card tone="raised" style={styles.card}>
+  return <Card tone="elevated" style={styles.card}>
     {open ? <>
       <Text style={styles.cardTitle}>Editar perfil</Text>
       <TextField label="Nome" value={name} onChangeText={setName} maxLength={80} autoComplete="name" error={errors.name} />
@@ -80,6 +82,7 @@ export function EditProfileCard() {
 }
 
 export function ChangePasswordCard() {
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -130,6 +133,7 @@ export function ChangePasswordCard() {
 }
 
 export function ResetProgressCard({ onReset }: { onReset: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string>();
   const [resetting, setResetting] = useState(false);
@@ -174,12 +178,12 @@ export function ResetProgressCard({ onReset }: { onReset: () => void }) {
   </Card>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   card: { gap: spacing.md },
   danger: { borderColor: colors.danger, borderWidth: 1 },
-  name: { ...typography.heading, color: colors.text, fontSize: 18 },
-  cardTitle: { ...typography.heading, color: colors.text, fontSize: 17 },
-  muted: { ...typography.body, color: colors.textMuted, fontSize: 15, lineHeight: 22 },
-  success: { ...typography.body, color: colors.success, fontSize: 14 },
-  error: { ...typography.body, color: colors.danger, fontSize: 14 },
+  name: { ...typography.heading, color: colors.text },
+  cardTitle: { ...typography.heading, color: colors.text },
+  muted: { ...typography.bodySm, color: colors.textSecondary },
+  success: { ...typography.bodySm, color: colors.success },
+  error: { ...typography.bodySm, color: colors.danger },
 });

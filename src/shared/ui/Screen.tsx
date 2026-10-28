@@ -2,7 +2,8 @@ import type { PropsWithChildren, RefObject } from 'react';
 import type { ScrollViewInstance, StyleProp, ViewStyle } from 'react-native';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
-import { colors, spacing } from '../theme/tokens';
+import { useTheme, useThemedStyles, type Theme } from '../theme/ThemeProvider';
+import { spacing } from '../theme/tokens';
 
 type ScreenProps = PropsWithChildren<{
   scroll?: boolean;
@@ -16,6 +17,8 @@ type ScreenProps = PropsWithChildren<{
 const defaultEdges: readonly Edge[] = ['left', 'right'];
 
 export function Screen({ children, scroll = true, contentStyle, refreshing, onRefresh, edges = defaultEdges, scrollRef }: ScreenProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const content = <View style={[styles.content, contentStyle]}>{children}</View>;
   return <SafeAreaView edges={edges} style={styles.safe}>
     {scroll
@@ -23,14 +26,15 @@ export function Screen({ children, scroll = true, contentStyle, refreshing, onRe
         ref={scrollRef}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} /> : undefined}
+        refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} progressBackgroundColor={colors.surface} /> : undefined}
       >{content}</ScrollView>
       : content}
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scrollContent: { flexGrow: 1 },
-  content: { flex: 1, padding: spacing.lg, gap: spacing.md },
+  // Largura máxima só para tablets; no celular ocupa tudo com respiro de 16.
+  content: { flex: 1, width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.xl, gap: spacing.md },
 });

@@ -1,33 +1,34 @@
 import type { ComponentProps } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
-import { colors, spacing, typography } from '../theme/tokens';
-import { ProgressBar } from './ProgressBar';
+import { useTheme, useThemedStyles, type Theme } from '../theme/ThemeProvider';
+import { spacing, typography } from '../theme/tokens';
+import { ProgressBar, type ProgressTone } from './ProgressBar';
 
 type DuckStatusProps = {
   label: 'Saciedade' | 'Energia' | 'Felicidade';
   value: number;
   icon: ComponentProps<typeof Ionicons>['name'];
-  color?: string;
+  tone: ProgressTone;
 };
 
-export function DuckStatus({ label, value, icon, color = colors.primary }: DuckStatusProps) {
-  return <View style={styles.container}>
+export function DuckStatus({ label, value, icon, tone }: DuckStatusProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+  const iconColor = { water: colors.primary, xp: colors.rewardText, habit: colors.success }[tone];
+  return <View style={styles.container} accessible accessibilityLabel={`${label}: ${value}%`}>
     <View style={styles.header}>
-      <View style={styles.title}>
-        <Ionicons name={icon} size={18} color={color} />
-        <Text style={styles.label}>{label}</Text>
-      </View>
-      <Text style={[styles.value, { color }]}>{value}%</Text>
+      <Ionicons name={icon} size={16} color={iconColor} />
+      <Text style={styles.label} numberOfLines={1}>{label}</Text>
+      <Text style={styles.value}>{value}%</Text>
     </View>
-    <ProgressBar value={value} color={color} height={6} />
+    <ProgressBar value={value} tone={tone} height={6} />
   </View>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   container: { gap: spacing.xs },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.xs },
-  title: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
-  label: { ...typography.body, color: colors.textMuted, fontSize: 13 },
-  value: { ...typography.numeric, fontSize: 13 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  label: { ...typography.caption, color: colors.textSecondary, flex: 1 },
+  value: { ...typography.numeric, fontSize: 12, lineHeight: 16, color: colors.text },
 });

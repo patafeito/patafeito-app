@@ -1,7 +1,7 @@
 import type { Species } from '../../onboarding/domain/species';
 import { difficultyLabel, type Task } from '../../tasks/domain/task';
 
-export type Recommendation = { title: string; body: string; action: { label: string; href: '/(tabs)/tasks' | '/(tabs)/focus' } };
+export type Recommendation = { title: string; body: string; action: { label: string; href: '/(tabs)/tasks' | '/(tabs)/focus' | '/(tabs)/habits' } };
 
 const difficultyOrder = { easy: 0, medium: 1, hard: 2 } as const;
 
@@ -15,8 +15,8 @@ export function buildRecommendation(species: Species, state: { pendingTasks: Tas
   }
 
   if (species.id === 'bento') {
-    if (state.streak > 0) return { title: species.recommendation, body: `Você está há ${state.streak} ${state.streak === 1 ? 'dia' : 'dias'} seguidos. Conclua uma tarefa hoje para manter.`, action: { label: 'Ver tarefas', href: '/(tabs)/tasks' } };
-    return { title: 'Comece uma sequência', body: 'Conclua uma tarefa hoje para abrir sua primeira sequência.', action: { label: 'Ver tarefas', href: '/(tabs)/tasks' } };
+    if (state.streak > 0) return { title: species.recommendation, body: `Você está há ${state.streak} ${state.streak === 1 ? 'dia' : 'dias'} seguidos. Marque um hábito hoje para manter.`, action: { label: 'Ver hábitos', href: '/(tabs)/habits' } };
+    return { title: 'Comece uma sequência', body: 'Um hábito pequeno, todo dia, abre sua primeira sequência.', action: { label: 'Ver hábitos', href: '/(tabs)/habits' } };
   }
 
   return next

@@ -26,6 +26,17 @@ export const estimatedReward: Record<TaskDifficulty, { xp: number; coins: number
   hard: { xp: 40, coins: 3 },
 };
 
+export type DueOption = 'none' | 'today' | 'tomorrow';
+
+/** Prazo no fim do dia escolhido (23:59, hora local). */
+export function dueAtFor(option: DueOption, now = new Date()) {
+  if (option === 'none') return null;
+  const date = new Date(now);
+  if (option === 'tomorrow') date.setDate(date.getDate() + 1);
+  date.setHours(23, 59, 0, 0);
+  return date.toISOString();
+}
+
 export function isOverdue(task: Task, now = new Date()) {
   return task.status === 'pending' && !!task.dueAt && new Date(task.dueAt).getTime() < now.getTime();
 }

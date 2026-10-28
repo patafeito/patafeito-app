@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { PixelImage } from '../../../shared/ui/PixelImage';
 import { ApiError, NetworkError } from '../../../shared/network/api-client';
-import { colors, radius, spacing, typography } from '../../../shared/theme/tokens';
+import { useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
+import { radius, spacing, typography } from '../../../shared/theme/tokens';
 import { celebrate } from '../../pet/application/pet-mood';
 import { itemImage, type InventoryRow, type ShopItem } from '../domain/catalog';
 import { consumeItem } from '../infrastructure/shop-repository';
@@ -10,6 +12,7 @@ type FoodTrayProps = { foods: { item: ShopItem; row: InventoryRow }[]; onFed: ()
 
 /** Comidas da mochila, prontas para dar ao pato com um toque. */
 export function FoodTray({ foods, onFed }: FoodTrayProps) {
+  const styles = useThemedStyles(makeStyles);
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<string>();
 
@@ -42,7 +45,7 @@ export function FoodTray({ foods, onFed }: FoodTrayProps) {
           onPress={() => void feed(item)}
           style={({ pressed }) => [styles.food, pressed && styles.pressed, busy === item.id && styles.busy]}
         >
-          {image ? <Image source={image} style={styles.icon} accessibilityIgnoresInvertColors /> : null}
+          {image ? <PixelImage source={image} size={44} /> : null}
           <Text style={styles.quantity}>x{row.quantity}</Text>
         </Pressable>;
       })}
@@ -51,14 +54,13 @@ export function FoodTray({ foods, onFed }: FoodTrayProps) {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   container: { gap: spacing.sm },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  food: { alignItems: 'center', padding: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.borderSubtle, minWidth: 64 },
+  food: { alignItems: 'center', padding: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, minWidth: 64 },
   pressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
   busy: { opacity: 0.5 },
-  icon: { width: 44, height: 44 },
-  quantity: { ...typography.numeric, color: colors.text, fontSize: 12 },
-  muted: { ...typography.body, color: colors.textMuted, fontSize: 14 },
-  error: { ...typography.body, color: colors.danger, fontSize: 13 },
+  quantity: { ...typography.caption, color: colors.text, fontVariant: ["tabular-nums"] },
+  muted: { ...typography.bodySm, color: colors.textSecondary },
+  error: { ...typography.bodySm, color: colors.danger },
 });

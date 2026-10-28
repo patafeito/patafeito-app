@@ -6,7 +6,7 @@ import { refreshBoosts, refreshCatalog } from '../../shop/infrastructure/shop-re
 import type { QueuedOperation, SyncChange, SyncResultStatus } from '../domain/types';
 import {
   applyChanges, deferOperation, discardLocalTask, getCursor, markFocusSessionSynced, markOperation,
-  markTaskSynced, pendingOperations, removeOperation, restoreTaskCompletion, revertTaskCompletion,
+  markTaskSynced, pendingOperations, removeOperation, restoreTaskCompletion, revertTaskCompletion, sendingOperations,
 } from '../infrastructure/sync-repository';
 
 type PushResult = { opId: string; status: SyncResultStatus; data?: Record<string, unknown>; reason?: string; code?: string };
@@ -45,13 +45,18 @@ async function applyResult(operation: QueuedOperation, result: PushResult) {
 async function sendPush() {
   const operations = await pendingOperations();
   if (!operations.length) return;
-  const response = await authorizedFetch<{ results: PushResult[] }>('/sync/push', {
-    method: 'POST',
-    body: JSON.stringify({ operations: operations.map(({ opId, type, resourceId, baseVersion, payload }) => ({ opId, type, resourceId, baseVersion, payload })) }),
-  });
-  for (const operation of operations) {
-    const result = response.results.find((item) => item.opId === operation.opId);
-    if (result) await applyResult(operation, result);
+  for (const operation of operations) sendingOperations.add(operation.opId);
+  try {
+    const response = await authorizedFetch<{ results: PushResult[] }>('/sync/push', {
+      method: 'POST',
+      body: JSON.stringify({ operations: operations.map(({ opId, type, resourceId, baseVersion, payload }) => ({ opId, type, resourceId, baseVersion, payload })) }),
+    });
+    for (const operation of operations) {
+      const result = response.results.find((item) => item.opId === operation.opId);
+      if (result) await applyResult(operation, result);
+    }
+  } finally {
+    for (const operation of operations) sendingOperations.delete(operation.opId);
   }
 }
 

@@ -1,4 +1,4 @@
-import { colors } from '../../../shared/theme/tokens';
+import type { Palette } from '../../../shared/theme/palette';
 
 export type SpeciesId = 'pingo' | 'mare' | 'bento';
 
@@ -10,7 +10,8 @@ export type Species = {
   indicatedFor: string;
   mission: string;
   recommendation: string;
-  accent: string;
+  /** Cor do tema que identifica o pato. */
+  accent: keyof Palette;
 };
 
 export const speciesList: Species[] = [
@@ -22,7 +23,7 @@ export const speciesList: Species[] = [
     indicatedFor: 'Para quem quer vencer a inércia.',
     mission: 'Conclua uma tarefa de até 15 minutos.',
     recommendation: 'Comece por aqui',
-    accent: colors.experience,
+    accent: 'reward',
   },
   {
     id: 'mare',
@@ -32,7 +33,7 @@ export const speciesList: Species[] = [
     indicatedFor: 'Para quem quer trabalhar em blocos de foco.',
     mission: 'Complete um ciclo de foco de 25 minutos.',
     recommendation: 'Seu próximo foco',
-    accent: colors.primary,
+    accent: 'primary',
   },
   {
     id: 'bento',
@@ -42,7 +43,7 @@ export const speciesList: Species[] = [
     indicatedFor: 'Para quem quer construir rotina.',
     mission: 'Conclua uma tarefa recorrente hoje.',
     recommendation: 'Proteja sua sequência',
-    accent: colors.success,
+    accent: 'success',
   },
 ];
 

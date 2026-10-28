@@ -13,7 +13,8 @@ import { Button } from '../shared/ui/Button';
 import { Card } from '../shared/ui/Card';
 import { Screen } from '../shared/ui/Screen';
 import { TextField } from '../shared/ui/TextField';
-import { colors, spacing, typography } from '../shared/theme/tokens';
+import { useTheme, useThemedStyles, type Theme } from '../shared/theme/ThemeProvider';
+import { spacing, typography } from '../shared/theme/tokens';
 
 async function loadSwitchContext() {
   const [pet, history] = await Promise.all([loadLocalPet(), fetchPetHistory().catch(() => undefined)]);
@@ -21,6 +22,8 @@ async function loadSwitchContext() {
 }
 
 export default function SwitchPetScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const { data } = useLocalData(loadSwitchContext);
   const [selected, setSelected] = useState<SpeciesId>();
   const [name, setName] = useState('');
@@ -73,7 +76,7 @@ export default function SwitchPetScreen() {
     {options.map((item) => {
       const active = item.id === selected;
       return <Pressable key={item.id} accessibilityRole="radio" accessibilityState={{ selected: active }} onPress={() => choose(item.id)}>
-        <Card tone={active ? 'primary' : 'default'} style={[styles.option, active && { borderColor: item.accent }]}>
+        <Card tone={active ? 'primary' : 'default'} style={[styles.option, active && { borderColor: colors[item.accent] }]}>
           <PetSprite species={item.id} state={active ? 'cheer' : 'idle'} height={80} still={!active} />
           <View style={styles.historyText}>
             <Text style={styles.historyName}>{item.name} <Text style={styles.muted}>— {item.tagline}</Text></Text>
@@ -89,14 +92,14 @@ export default function SwitchPetScreen() {
   </Screen>;
 }
 
-const styles = StyleSheet.create({
-  title: { ...typography.heading, color: colors.text, fontSize: 18 },
-  cardTitle: { ...typography.heading, color: colors.text, fontSize: 17, marginBottom: spacing.sm },
-  muted: { ...typography.body, color: colors.textMuted, fontSize: 14, lineHeight: 20 },
-  error: { ...typography.body, color: colors.danger, fontSize: 14 },
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  title: { ...typography.heading, color: colors.text },
+  cardTitle: { ...typography.heading, color: colors.text, marginBottom: spacing.sm },
+  muted: { ...typography.bodySm, color: colors.textSecondary },
+  error: { ...typography.bodySm, color: colors.danger },
   history: { gap: spacing.sm },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   historyText: { flex: 1, gap: 2 },
-  historyName: { ...typography.label, color: colors.text, fontSize: 15 },
+  historyName: { ...typography.label, color: colors.text },
   option: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 });

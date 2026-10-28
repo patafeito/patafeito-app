@@ -1,23 +1,27 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { LayoutAnimation, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { router } from 'expo-router';
 import { syncInBackground } from '../../features/sync/application/sync-startup';
 import { synchronize } from '../../features/sync/application/sync-engine';
 import { toggleTaskCompletion } from '../../features/tasks/application/toggle-task';
 import { parseMonthDay, recurrenceLabel, weekdayLabels, type Recurrence, type RecurrenceRule } from '../../features/tasks/domain/recurrence';
-import { estimatedReward, type Task, type TaskDifficulty, type TaskStatus } from '../../features/tasks/domain/task';
-import { createLocalTask, deleteLocalTask, ensureRecurringOccurrences, listLocalTasks } from '../../features/tasks/infrastructure/local-task-repository';
+import { TaskEditor } from '../../features/tasks/components/TaskEditor';
+import { dueAtFor, estimatedReward, type DueOption, type Task, type TaskDifficulty, type TaskStatus } from '../../features/tasks/domain/task';
+import { createLocalTask, deleteLocalTask, ensureRecurringOccurrences, listLocalTasks, updateLocalTask, type TaskChanges } from '../../features/tasks/infrastructure/local-task-repository';
 import { useLocalData } from '../../shared/hooks/use-local-data';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
 import { ChipGroup } from '../../shared/ui/ChipGroup';
 import { useConfirm } from '../../shared/ui/ConfirmDialog';
+import { EmptyState } from '../../shared/ui/EmptyState';
+import { ScreenHeader } from '../../shared/ui/Headers';
 import { Screen } from '../../shared/ui/Screen';
 import { TaskItem } from '../../shared/ui/TaskItem';
 import { TextField } from '../../shared/ui/TextField';
-import { colors, spacing, typography } from '../../shared/theme/tokens';
+import { useTheme, useThemedStyles, type Theme } from '../../shared/theme/ThemeProvider';
+import { spacing, typography } from '../../shared/theme/tokens';
 
-type DueOption = 'none' | 'today' | 'tomorrow';
 type RepeatOption = 'none' | Recurrence;
 
 const difficultyOptions: { value: TaskDifficulty; label: string }[] = [
@@ -43,14 +47,6 @@ const filterOptions: { value: 'all' | TaskStatus; label: string }[] = [
   { value: 'completed', label: 'Concluídas' },
 ];
 
-function dueAtFor(option: DueOption) {
-  if (option === 'none') return null;
-  const date = new Date();
-  if (option === 'tomorrow') date.setDate(date.getDate() + 1);
-  date.setHours(23, 59, 0, 0);
-  return date.toISOString();
-}
-
 function ruleFor(repeat: RepeatOption, weekday: number, monthDay: number): RecurrenceRule | null {
   if (repeat === 'none') return null;
   if (repeat === 'daily') return { recurrence: 'daily', recurrenceDay: null };
@@ -63,9 +59,12 @@ async function loadTasks() {
 }
 
 export default function TasksScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const { data: tasks, reload } = useLocalData(loadTasks);
-  const [filter, setFilter] = useState<'all' | TaskStatus>('all');
+  const [filter, setFilter] = useState<'all' | TaskStatus>('pending');
   const [title, setTitle] = useState('');
+  const [showOptions, setShowOptions] = useState(false);
   const [difficulty, setDifficulty] = useState<TaskDifficulty>('easy');
   const [due, setDue] = useState<DueOption>('none');
   const [repeat, setRepeat] = useState<RepeatOption>('none');
@@ -75,9 +74,16 @@ export default function TasksScreen() {
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const [refreshing, setRefreshing] = useState(false);
+  const [editing, setEditing] = useState<Task>();
   const { confirm, dialog } = useConfirm();
 
   const visible = (tasks ?? []).filter((task) => filter === 'all' || task.status === filter);
+  const pendingCount = (tasks ?? []).filter((task) => task.status === 'pending').length;
+
+  function toggleOptions() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowOptions((value) => !value);
+  }
 
   async function addTask() {
     const value = title.trim();
@@ -100,10 +106,26 @@ export default function TasksScreen() {
     const result = await toggleTaskCompletion(task);
     setMessage(result.message);
     await reload();
-    if (result.action === 'completed') router.navigate('/(tabs)');
+    // Espera o "+XP" aparecer antes de levar ao pato comemorando.
+    if (result.action === 'completed') setTimeout(() => router.navigate('/(tabs)'), 700);
+  }
+
+  /** Pendente abre o editor; concluída só pode ser excluída. */
+  function openOptions(task: Task) {
+    if (task.status === 'pending') setEditing(task);
+    else confirmDelete(task);
+  }
+
+  async function save(task: Task, changes: TaskChanges) {
+    setEditing(undefined);
+    await updateLocalTask(task, changes);
+    setMessage(changes.dueAt !== undefined && Object.keys(changes).length === 1 ? `“${task.title}” foi reagendada.` : 'Tarefa atualizada.');
+    await reload();
+    syncInBackground();
   }
 
   function confirmDelete(task: Task) {
+    setEditing(undefined);
     const repeating = !!task.recurrence && task.status === 'pending';
     confirm({
       title: 'Excluir tarefa?',
@@ -134,44 +156,56 @@ export default function TasksScreen() {
     }
   }
 
-  return <Screen refreshing={refreshing} onRefresh={() => void refresh()}>
-    <Text style={styles.title}>Suas tarefas</Text>
+  return <Screen refreshing={refreshing} onRefresh={() => void refresh()} edges={['top', 'left', 'right']}>
+    <ScreenHeader title="Tarefas" subtitle={pendingCount ? `${pendingCount} ${pendingCount === 1 ? 'pendente' : 'pendentes'}` : 'Nada pendente'} />
 
     <Card style={styles.form}>
       <TextField label="Nova tarefa" value={title} onChangeText={setTitle} placeholder="Ex.: Ler 10 páginas" returnKeyType="done" onSubmitEditing={() => void addTask()} error={error} maxLength={200} />
-      <ChipGroup label="Dificuldade" options={difficultyOptions} value={difficulty} onChange={setDifficulty} />
-      <ChipGroup label="Repetição" options={repeatOptions} value={repeat} onChange={setRepeat} />
-      {repeat === 'weekly' ? <ChipGroup label="Dia da semana" options={weekdayOptions} value={String(weekday)} onChange={(value) => setWeekday(Number(value))} /> : null}
-      {repeat === 'monthly' ? <TextField
-        label="Dia do mês"
-        value={monthDay}
-        onChangeText={(text) => { setMonthDay(text); setMonthDayError(undefined); }}
-        placeholder="1 a 31"
-        keyboardType="number-pad"
-        maxLength={2}
-        error={monthDayError}
-        hint={(parseMonthDay(monthDay) ?? 0) > 28 ? 'Nos meses mais curtos, a tarefa cai no último dia.' : 'Um número de 1 a 31.'}
-      /> : null}
-      {repeat === 'none' ? <ChipGroup label="Prazo" options={dueOptions} value={due} onChange={setDue} /> : null}
-      <Button label="Adicionar tarefa" onPress={() => void addTask()} />
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: showOptions }} onPress={toggleOptions} style={styles.optionsToggle} hitSlop={8}>
+        <Text style={styles.optionsLabel}>{showOptions ? 'Menos opções' : `Dificuldade, prazo e repetição · ${difficultyOptions.find((option) => option.value === difficulty)?.label}`}</Text>
+        <Ionicons name={showOptions ? 'chevron-up' : 'chevron-down'} size={18} color={colors.primary} />
+      </Pressable>
+      {showOptions ? <View style={styles.options}>
+        <ChipGroup label="Dificuldade" options={difficultyOptions} value={difficulty} onChange={setDifficulty} />
+        <ChipGroup label="Repetição" options={repeatOptions} value={repeat} onChange={setRepeat} />
+        {repeat === 'weekly' ? <ChipGroup label="Dia da semana" options={weekdayOptions} value={String(weekday)} onChange={(value) => setWeekday(Number(value))} /> : null}
+        {repeat === 'monthly' ? <TextField
+          label="Dia do mês"
+          value={monthDay}
+          onChangeText={(text) => { setMonthDay(text); setMonthDayError(undefined); }}
+          placeholder="1 a 31"
+          keyboardType="number-pad"
+          maxLength={2}
+          error={monthDayError}
+          hint={(parseMonthDay(monthDay) ?? 0) > 28 ? 'Nos meses mais curtos, a tarefa cai no último dia.' : 'Um número de 1 a 31.'}
+        /> : null}
+        {repeat === 'none' ? <ChipGroup label="Prazo" options={dueOptions} value={due} onChange={setDue} /> : null}
+      </View> : null}
+      <Button label="Adicionar tarefa" icon="add" onPress={() => void addTask()} />
     </Card>
 
-    <ChipGroup options={filterOptions} value={filter} onChange={setFilter} />
-    {message ? <Text style={styles.message}>{message}</Text> : null}
+    <ChipGroup variant="segmented" options={filterOptions} value={filter} onChange={setFilter} />
+    {message ? <Text style={styles.message} accessibilityLiveRegion="polite">{message}</Text> : null}
 
     <View style={styles.list}>
       {visible.length === 0
-        ? <Text style={styles.empty}>{filter === 'completed' ? 'Nada concluído ainda. A primeira vitória vem já.' : 'Ainda não há tarefas. Comece pequeno: uma tarefa clara já é progresso.'}</Text>
-        : visible.map((task) => <TaskItem key={task.id} task={task} onPress={() => void toggle(task)} onLongPress={confirmDelete} />)}
+        ? filter === 'completed'
+          ? <EmptyState species="pingo" state="happy" title="Nada concluído ainda" message="A primeira vitória vem já. Escolha a menor tarefa da lista." />
+          : <EmptyState species="pingo" title="Lista limpinha" message="Comece pequeno: uma tarefa clara já é progresso." />
+        : visible.map((task) => <TaskItem key={task.id} task={task} onPress={() => void toggle(task)} onLongPress={openOptions} />)}
     </View>
+    {visible.length ? <Text style={styles.tip}>Toque para concluir · segure para editar</Text> : null}
+    <TaskEditor task={editing} onClose={() => setEditing(undefined)} onSave={(task, changes) => void save(task, changes)} onDelete={confirmDelete} />
     {dialog}
   </Screen>;
 }
 
-const styles = StyleSheet.create({
-  title: { ...typography.display, color: colors.text, fontSize: 26 },
+const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   form: { gap: spacing.md },
-  message: { ...typography.body, color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+  optionsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, minHeight: 32 },
+  optionsLabel: { ...typography.label, color: colors.primary, flexShrink: 1 },
+  options: { gap: spacing.md },
+  message: { ...typography.bodySm, color: colors.textSecondary },
   list: { gap: spacing.sm },
-  empty: { ...typography.body, color: colors.textMuted, fontSize: 15, lineHeight: 22 },
+  tip: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
 });

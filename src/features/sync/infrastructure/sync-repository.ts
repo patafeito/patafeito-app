@@ -4,6 +4,9 @@ import type { QueuedOperation, SyncChange, SyncOperationType } from '../domain/t
 
 const cursorKey = 'sync.cursor';
 
+/** Operações do push em andamento; não podem mais ser alteradas na fila. */
+export const sendingOperations = new Set<string>();
+
 export async function enqueueOperation(type: SyncOperationType, payload: Record<string, unknown>, options?: { resourceId?: string; baseVersion?: number }) {
   const database = await getDatabase();
   const opId = newId();
@@ -33,6 +36,24 @@ export async function discardPendingOperation(type: SyncOperationType, resourceI
     "DELETE FROM sync_queue WHERE state = 'pending' AND operation_type = ? AND resource_id = ?", type, resourceId,
   );
   return result.changes > 0;
+}
+
+/**
+ * Junta `changes` à criação ou edição desta tarefa que ainda está na fila, para não mandar duas
+ * edições com a mesma versão-base (a segunda viraria conflito). Devolve se encontrou uma.
+ */
+export async function mergeIntoPendingTaskOperation(resourceId: string, changes: Record<string, unknown>) {
+  const database = await getDatabase();
+  // Só operações que nunca saíram do aparelho: uma já enviada pode ter sido aplicada com o payload antigo.
+  const rows = await database.getAllAsync<{ op_id: string; payload: string }>(
+    "SELECT op_id, payload FROM sync_queue WHERE state = 'pending' AND attempts = 0 AND resource_id = ? AND operation_type IN ('task.create', 'task.update') ORDER BY created_at DESC",
+    resourceId,
+  );
+  const row = rows.find((candidate) => !sendingOperations.has(candidate.op_id));
+  if (!row) return false;
+  const payload = { ...(JSON.parse(row.payload) as Record<string, unknown>), ...changes };
+  await database.runAsync('UPDATE sync_queue SET payload = ? WHERE op_id = ?', JSON.stringify(payload), row.op_id);
+  return true;
 }
 
 export async function deferOperation(operation: QueuedOperation, error: string) {
