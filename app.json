@@ -15,7 +15,8 @@
         "backgroundColor": "#10233A",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ianfelps.patafeito"
     },
     "web": {
       "favicon": "./assets/favicon.png"
