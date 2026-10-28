@@ -27,6 +27,17 @@
       "@react-native-vector-icons/ionicons",
       "expo-asset",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "31614aac-7e58-4992-9de6-3b5f78d80960"
+      }
+    },
+    "owner": "ianfelps"
   }
 }
