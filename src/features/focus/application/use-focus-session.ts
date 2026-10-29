@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { refreshNotifications } from '../../notifications/application/refresh-notifications';
+import { notificationPermission, requestNotificationPermission } from '../../notifications/infrastructure/local-scheduler';
 import { syncInBackground } from '../../sync/application/sync-startup';
 import * as repository from '../infrastructure/local-focus-repository';
 import { loadBreakEndsAt, saveBreakEndsAt } from '../infrastructure/focus-settings-repository';
@@ -45,6 +47,7 @@ export function useFocusSession() {
     await saveBreakEndsAt(null);
     setBreakEndsAt(undefined);
     setBreakRemaining(0);
+    void refreshNotifications();
   }, []);
 
   const start = useCallback(async (taskId?: string | null, durationSeconds?: number) => {
@@ -52,11 +55,15 @@ export function useFocusSession() {
     const started = await repository.startSession(taskId, durationSeconds);
     setSession(started);
     setRemaining(remainingSeconds(started));
+    // Momento natural para pedir permissão: avisar quando o ciclo acabar com o app fechado.
+    if ((await notificationPermission()) === 'undetermined') await requestNotificationPermission();
+    void refreshNotifications();
   }, [endBreak]);
 
   const pause = useCallback(async () => {
     if (!sessionRef.current) return;
     setSession(await repository.pauseSession(sessionRef.current));
+    void refreshNotifications();
   }, []);
 
   const resume = useCallback(async () => {
@@ -64,6 +71,7 @@ export function useFocusSession() {
     const resumed = await repository.resumeSession(sessionRef.current);
     setSession(resumed);
     setRemaining(remainingSeconds(resumed));
+    void refreshNotifications();
   }, []);
 
   const cancel = useCallback(async () => {
@@ -71,6 +79,7 @@ export function useFocusSession() {
     await repository.cancelSession(sessionRef.current);
     setSession(undefined);
     setRemaining(0);
+    void refreshNotifications();
   }, []);
 
   /** Registra o ciclo e já começa a pausa, se houver. */
@@ -85,6 +94,7 @@ export function useFocusSession() {
       setBreakEndsAt(endsAt);
       setBreakRemaining(breakSeconds);
     }
+    void refreshNotifications();
     syncInBackground();
   }, []);
 

@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
+import { useKeyboardAwareField } from '../hooks/use-keyboard-aware-scroll';
 import { useTheme, useThemedStyles, type Theme } from '../theme/ThemeProvider';
 import { radius, spacing, touch, typography } from '../theme/tokens';
 
@@ -17,10 +18,13 @@ export function TextField({ label, hint, error, password, style, onFocus, onBlur
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const inputRef = useRef<TextInputInstance>(null);
+  const keyboardAware = useKeyboardAwareField();
   return <View style={styles.container}>
     <Text style={styles.label}>{label}</Text>
     <View>
       <TextInput
+        ref={inputRef}
         accessibilityLabel={label}
         accessibilityHint={error ?? hint}
         placeholderTextColor={colors.textDisabled}
@@ -28,8 +32,8 @@ export function TextField({ label, hint, error, password, style, onFocus, onBlur
         cursorColor={colors.primary}
         {...inputProps}
         secureTextEntry={password ? !revealed : inputProps.secureTextEntry}
-        onFocus={(event) => { setFocused(true); onFocus?.(event); }}
-        onBlur={(event) => { setFocused(false); onBlur?.(event); }}
+        onFocus={(event) => { setFocused(true); keyboardAware?.inputFocused(inputRef); onFocus?.(event); }}
+        onBlur={(event) => { setFocused(false); keyboardAware?.inputBlurred(inputRef); onBlur?.(event); }}
         style={[styles.input, password && styles.inputWithAction, focused && styles.inputFocused, !!error && styles.inputError, style]}
       />
       {password ? <Pressable

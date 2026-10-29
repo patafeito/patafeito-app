@@ -27,7 +27,14 @@
       "expo-sqlite",
       "@react-native-vector-icons/ionicons",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#17788F"
+        }
+      ]
     ],
     "extra": {
       "router": {

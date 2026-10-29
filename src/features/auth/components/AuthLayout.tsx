@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { Image, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { Screen } from '../../../shared/ui/Screen';
 import { useTheme, useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
@@ -24,34 +24,32 @@ type AuthLayoutProps = PropsWithChildren<{
 export function AuthLayout({ title, subtitle, error, footer, children }: AuthLayoutProps) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  return <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <Screen edges={['top', 'left', 'right', 'bottom']} contentStyle={styles.content}>
-      <View style={styles.column}>
-        <View style={[styles.hero, { aspectRatio: bannerAspectRatio }]}>
-          <Image source={banner} style={styles.heroImage} resizeMode="contain" fadeDuration={0} accessibilityIgnoresInvertColors />
-        </View>
-        <Text style={styles.brand} accessibilityRole="header">Patafeito</Text>
-
-        <View style={styles.card}>
-          <View style={styles.titles}>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.subtitle}>{subtitle}</Text>
-          </View>
-          {children}
-          {error ? <View style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
-            <Ionicons name="alert-circle" size={18} color={colors.onDangerSoft} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View> : null}
-        </View>
-
-        <View style={styles.footer}>{footer}</View>
+  // O Screen abre espaço e rola até o campo focado quando o teclado aparece, nas duas plataformas.
+  return <Screen edges={['top', 'left', 'right', 'bottom']} contentStyle={styles.content}>
+    <View style={styles.column}>
+      <View style={[styles.hero, { aspectRatio: bannerAspectRatio }]}>
+        <Image source={banner} style={styles.heroImage} resizeMode="contain" fadeDuration={0} accessibilityIgnoresInvertColors />
       </View>
-    </Screen>
-  </KeyboardAvoidingView>;
+      <Text style={styles.brand} accessibilityRole="header">Patafeito</Text>
+
+      <View style={styles.card}>
+        <View style={styles.titles}>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
+        </View>
+        {children}
+        {error ? <View style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          <Ionicons name="alert-circle" size={18} color={colors.onDangerSoft} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View> : null}
+      </View>
+
+      <View style={styles.footer}>{footer}</View>
+    </View>
+  </Screen>;
 }
 
 const makeStyles = ({ colors, elevation }: Theme) => StyleSheet.create({
-  flex: { flex: 1 },
   content: { justifyContent: 'center' },
   column: { width: '100%', maxWidth: 440, alignSelf: 'center', gap: spacing.md },
   hero: { width: '100%', borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },

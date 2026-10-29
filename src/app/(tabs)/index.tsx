@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { loadAchievements } from '../../features/achievements/application/load-achievements';
 import { useSession } from '../../features/auth/application/session-context';
 import { buildRecommendation } from '../../features/home/domain/recommendation';
+import { NotificationPrompt } from '../../features/notifications/components/NotificationPrompt';
 import { speciesById } from '../../features/onboarding/domain/species';
 import { usePetReaction } from '../../features/pet/application/pet-mood';
 import { PetStage } from '../../features/pet/components/PetStage';
@@ -111,6 +112,8 @@ export default function HomeScreen() {
 
     {pet ? <PetStage pet={pet} streak={data?.streak ?? 0} pendingXp={data?.pendingXp} backgroundSku={data?.backgroundSku} aspectRatio={1.45} showStats={false} />
       : <Card><Text style={styles.muted}>Seu pato aparece aqui assim que for criado.</Text></Card>}
+
+    {pet ? <NotificationPrompt petName={pet.name} /> : null}
 
     <Card tone="primary" style={styles.recommendation}>
       <Text style={styles.eyebrow}>Próximo passo</Text>

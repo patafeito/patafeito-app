@@ -1,7 +1,8 @@
-import type { PropsWithChildren, RefObject } from 'react';
+import { useRef, type PropsWithChildren, type RefObject } from 'react';
 import type { ScrollViewInstance, StyleProp, ViewStyle } from 'react-native';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { KeyboardAwareContext, useKeyboardAwareScroll } from '../hooks/use-keyboard-aware-scroll';
 import { useTheme, useThemedStyles, type Theme } from '../theme/ThemeProvider';
 import { spacing } from '../theme/tokens';
 
@@ -19,15 +20,22 @@ const defaultEdges: readonly Edge[] = ['left', 'right'];
 export function Screen({ children, scroll = true, contentStyle, refreshing, onRefresh, edges = defaultEdges, scrollRef }: ScreenProps) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
+  const ownScrollRef = useRef<ScrollViewInstance>(null);
+  const ref = scrollRef ?? ownScrollRef;
+  const keyboard = useKeyboardAwareScroll(ref);
   const content = <View style={[styles.content, contentStyle]}>{children}</View>;
   return <SafeAreaView edges={edges} style={styles.safe}>
     {scroll
-      ? <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} progressBackgroundColor={colors.surface} /> : undefined}
-      >{content}</ScrollView>
+      ? <KeyboardAwareContext value={keyboard.context}>
+        <ScrollView
+          ref={ref}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: keyboard.bottomInset }]}
+          keyboardShouldPersistTaps="handled"
+          onScroll={keyboard.onScroll}
+          scrollEventThrottle={16}
+          refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} progressBackgroundColor={colors.surface} /> : undefined}
+        >{content}</ScrollView>
+      </KeyboardAwareContext>
       : content}
   </SafeAreaView>;
 }

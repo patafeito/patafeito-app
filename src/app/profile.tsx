@@ -4,6 +4,7 @@ import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { router } from 'expo-router';
 import { useSession } from '../features/auth/application/session-context';
 import { countCompletedSessions } from '../features/focus/infrastructure/local-focus-repository';
+import { NotificationSettingsCard } from '../features/notifications/components/NotificationSettingsCard';
 import { loadLocalPet } from '../features/pet/infrastructure/local-pet-repository';
 import { ChangePasswordCard, EditProfileCard, ResetProgressCard } from '../features/profile/components/AccountForms';
 import { cachedBalance, refreshBalance } from '../features/rewards/infrastructure/balance-repository';
@@ -57,6 +58,9 @@ export default function ProfileScreen() {
     <SectionHeader title="Aparência" />
     <ChipGroup variant="segmented" options={appearanceOptions} value={preference} onChange={setPreference} />
     <Text style={styles.footnote}>“Sistema” acompanha o modo claro ou escuro do aparelho.</Text>
+
+    <SectionHeader title="Notificações" />
+    <NotificationSettingsCard />
 
     <SectionHeader title="Sincronização" />
     <Card style={styles.sync}>

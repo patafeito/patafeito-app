@@ -1,5 +1,6 @@
-import type { PropsWithChildren } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useRef, type PropsWithChildren } from 'react';
+import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, type ScrollViewInstance } from 'react-native';
+import { KeyboardAwareContext, useKeyboardAwareScroll } from '../hooks/use-keyboard-aware-scroll';
 import { useThemedStyles, type Theme } from '../theme/ThemeProvider';
 import { radius, spacing } from '../theme/tokens';
 
@@ -8,11 +9,23 @@ type DialogProps = PropsWithChildren<{ visible: boolean; onClose: () => void }>;
 /** Base dos modais: fundo escurecido que fecha ao toque e um cartão central acolhedor. */
 export function Dialog({ visible, onClose, children }: DialogProps) {
   const styles = useThemedStyles(makeStyles);
-  return <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const keyboard = useKeyboardAwareScroll(scrollRef);
+  // O modal ocupa a tela toda (edge-to-edge no Android): o cartão sobe nas duas plataformas e o campo focado é rolado à vista.
+  return <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Fechar">
         {visible ? <Pressable style={styles.sheet} onPress={() => undefined} accessibilityViewIsModal>
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" bounces={false}>{children}</ScrollView>
+          <KeyboardAwareContext value={keyboard.context}>
+            <ScrollView
+              ref={scrollRef}
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              onScroll={keyboard.onScroll}
+              scrollEventThrottle={16}
+            >{children}</ScrollView>
+          </KeyboardAwareContext>
         </Pressable> : null}
       </Pressable>
     </KeyboardAvoidingView>

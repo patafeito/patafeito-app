@@ -6,6 +6,7 @@ import { Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
 import { Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
 import { PixelifySans_500Medium } from '@expo-google-fonts/pixelify-sans';
 import { SessionProvider } from '../features/auth/application/session-context';
+import { NotificationsStartup } from '../features/notifications/application/notifications-startup';
 import { SyncStartup } from '../features/sync/application/sync-startup';
 import { NoticeHost } from '../shared/ui/NoticeHost';
 import { ThemeProvider, useTheme } from '../shared/theme/ThemeProvider';
@@ -31,6 +32,7 @@ function AppStack() {
   return <SessionProvider>
     <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     <SyncStartup />
+    <NotificationsStartup />
     <Stack screenOptions={{
       headerStyle: { backgroundColor: colors.background },
       headerTintColor: colors.text,
