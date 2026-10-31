@@ -1,11 +1,12 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
-import { Stack } from 'expo-router';
+import { router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
 import { Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
 import { PixelifySans_500Medium } from '@expo-google-fonts/pixelify-sans';
-import { SessionProvider } from '../features/auth/application/session-context';
+import { SessionProvider, useSession } from '../features/auth/application/session-context';
 import { NotificationsStartup } from '../features/notifications/application/notifications-startup';
 import { SyncStartup } from '../features/sync/application/sync-startup';
 import { NoticeHost } from '../shared/ui/NoticeHost';
@@ -27,9 +28,29 @@ function Blank() {
   return <View style={{ flex: 1, backgroundColor: colors.background }} />;
 }
 
+/** Telas abertas sem login: as de entrar/cadastrar e a política de privacidade, linkada no cadastro. */
+const publicRoots = new Set(['(auth)', 'privacy']);
+
+/**
+ * Sem sessão, qualquer tela empilhada (Perfil, Loja, Amigos...) volta para o login: sair da conta,
+ * excluir a conta ou ter a sessão expirada não pode deixar a pessoa presa numa tela que já não vale.
+ */
+function SignedOutRedirect() {
+  const { status } = useSession();
+  const segments = useSegments();
+  const root = segments[0];
+  useEffect(() => {
+    if (status !== 'signed-out' || (root && publicRoots.has(root))) return;
+    if (router.canDismiss()) router.dismissAll();
+    router.replace('/sign-in');
+  }, [status, root]);
+  return null;
+}
+
 function AppStack() {
   const { colors, scheme } = useTheme();
   return <SessionProvider>
+    <SignedOutRedirect />
     <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     <SyncStartup />
     <NotificationsStartup />
@@ -55,6 +76,7 @@ function AppStack() {
       <Stack.Screen name="reports" options={{ title: 'Relatórios' }} />
       <Stack.Screen name="privacy" options={{ title: 'Privacidade e dados' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notificações' }} />
+      <Stack.Screen name="tour" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="focus-mode" options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }} />
     </Stack>
     <NoticeHost />

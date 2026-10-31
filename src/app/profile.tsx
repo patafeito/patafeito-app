@@ -67,6 +67,7 @@ export default function ProfileScreen() {
       <MenuItem icon="people-outline" label="Amigos" onPress={() => router.push('/friends')} />
       <MenuItem icon="notifications-outline" label="Notificações" detail={data?.unread ? `${data.unread} não lidas` : undefined} onPress={() => router.push('/notifications')} />
       <MenuItem icon="trophy-outline" label="Conquistas" onPress={() => router.push('/achievements')} />
+      <MenuItem icon="help-circle-outline" label="Como usar o Patafeito" onPress={() => router.push('/tour')} />
       <MenuItem icon="shield-checkmark-outline" label="Privacidade e dados" onPress={() => router.push('/privacy')} last />
     </Card>
 

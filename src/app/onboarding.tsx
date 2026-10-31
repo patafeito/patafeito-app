@@ -29,7 +29,8 @@ export default function Onboarding() {
     setSubmitting(true);
     try {
       await createPet({ speciesId: selected, name: trimmed });
-      router.replace('/(tabs)');
+      // Primeiro acesso: apresenta os módulos antes de abrir o Início.
+      router.replace({ pathname: '/tour', params: { first: '1' } });
     } catch (caught) {
       if (caught instanceof NetworkError) setError('Precisamos de conexão para criar seu pato. Tente de novo quando a rede voltar.');
       else setError(caught instanceof ApiError ? caught.message : 'Não foi possível criar seu pato agora.');

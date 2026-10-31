@@ -42,10 +42,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await authApi.logout();
-    await resetDatabase();
-    setUser(undefined);
-    setStatus('signed-out');
+    try {
+      await authApi.logout();
+      await resetDatabase();
+    } finally {
+      // Mesmo se limpar o aparelho falhar, a sessão já foi encerrada: a pessoa sai.
+      setUser(undefined);
+      setStatus('signed-out');
+    }
   }, []);
 
   const updateUser = useCallback((next: User) => setUser(next), []);
