@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
+import { router } from 'expo-router';
 import { useFocusSession } from '../../features/focus/application/use-focus-session';
 import {
-  BREAK_MINUTES_RANGE, FOCUS_MINUTES_RANGE, focusPresets, focusRewards, formatRemaining, parseMinutes,
+  BREAK_MINUTES_RANGE, cycleProgress, FOCUS_MINUTES_RANGE, focusPresets, focusRewards, formatRemaining, parseMinutes,
   type FocusPresetId, type FocusSettings,
 } from '../../features/focus/domain/focus-session';
-import { loadFocusSettings, saveFocusSettings } from '../../features/focus/infrastructure/focus-settings-repository';
-import { countCompletedSessions } from '../../features/focus/infrastructure/local-focus-repository';
+import { advanceCycle, loadCyclesInRow, loadFocusSettings, saveFocusSettings } from '../../features/focus/infrastructure/focus-settings-repository';
+import { countCompletedSessions, todayFocusStats } from '../../features/focus/infrastructure/local-focus-repository';
 import { speciesById } from '../../features/onboarding/domain/species';
 import { celebrate, usePetReaction } from '../../features/pet/application/pet-mood';
 import { useAmbientPose } from '../../features/pet/application/use-ambient-pose';
@@ -26,22 +27,24 @@ import { useTheme, useThemedStyles, type Theme } from '../../shared/theme/ThemeP
 import { radius, spacing, typography } from '../../shared/theme/tokens';
 
 const presetOptions: { value: FocusPresetId; label: string }[] = [
-  ...(['classic', 'short', 'long'] as const).map((value) => {
+  ...(['pomodoro', 'deep_work', 'sprint'] as const).map((value) => {
     const preset = focusPresets[value];
     return { value, label: `${preset.label} · ${preset.focusMinutes}/${preset.breakMinutes}` };
   }),
-  { value: 'custom', label: 'Personalizada' },
+  { value: 'custom', label: 'Personalizado' },
 ];
 
 async function loadFocusContext() {
-  const [pet, tasks, completedSessions] = await Promise.all([loadLocalPet(), listLocalTasks('pending'), countCompletedSessions()]);
-  return { pet, tasks: tasks.slice(0, 4), completedSessions };
+  const [pet, tasks, completedSessions, today, cyclesInRow] = await Promise.all([
+    loadLocalPet(), listLocalTasks('pending'), countCompletedSessions(), todayFocusStats(), loadCyclesInRow(),
+  ]);
+  return { pet, tasks: tasks.slice(0, 4), completedSessions, today, cyclesInRow };
 }
 
 export default function FocusScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const { session, remaining, breakEndsAt, breakRemaining, start, pause, resume, cancel, complete, endBreak } = useFocusSession();
+  const { session, remaining, breakEndsAt, breakRemaining, guarded, interrupted, start, pause, resume, cancel, complete, endBreak, setFocusMode } = useFocusSession();
   const { data, reload } = useLocalData(loadFocusContext);
   const [taskId, setTaskId] = useState<string>('none');
   const [message, setMessage] = useState<string>();
@@ -51,6 +54,8 @@ export default function FocusScreen() {
   const [customBreak, setCustomBreak] = useState('5');
   const [focusError, setFocusError] = useState<string>();
   const [breakError, setBreakError] = useState<string>();
+  const [focusMode, setFocusModeChoice] = useState(false);
+  const [breakTotal, setBreakTotal] = useState<number>();
 
   useEffect(() => {
     void loadFocusSettings().then((stored) => {
@@ -61,14 +66,16 @@ export default function FocusScreen() {
   }, []);
 
   const species = speciesById(data?.pet?.speciesId);
-  const preset = settings?.preset ?? 'classic';
+  const preset = settings?.preset ?? 'pomodoro';
   const planned = preset === 'custom'
     ? { focusMinutes: parseMinutes(customFocus, FOCUS_MINUTES_RANGE), breakMinutes: parseMinutes(customBreak, BREAK_MINUTES_RANGE) }
     : focusPresets[preset];
   const plannedSeconds = (planned.focusMinutes ?? settings?.focusMinutes ?? 25) * 60;
   const durationSeconds = session?.durationSeconds ?? plannedSeconds;
   const reward = focusRewards(durationSeconds);
-  const breakSeconds = (settings?.breakMinutes ?? 5) * 60;
+  // Pausa longa dura mais que a configurada; depois de reabrir o app, o restante serve de teto.
+  const breakSeconds = Math.max(breakTotal ?? (settings?.breakMinutes ?? 5) * 60, breakRemaining);
+  const cycle = settings ? cycleProgress(settings, data?.cyclesInRow ?? 0) : undefined;
   const onBreak = !session && !!breakEndsAt;
   const breakOver = onBreak && breakRemaining === 0;
   const breaking = onBreak && !breakOver;
@@ -92,13 +99,23 @@ export default function FocusScreen() {
     setSettings(chosen);
     await saveFocusSettings(chosen);
     setMessage(undefined);
-    await start(taskId === 'none' ? null : taskId, focusMinutes * 60);
+    await start(taskId === 'none' ? null : taskId, focusMinutes * 60, preset, focusMode);
+    if (focusMode) router.push('/focus-mode');
+  }
+
+  async function openFocusMode() {
+    if (!guarded) await setFocusMode(true);
+    router.push('/focus-mode');
   }
 
   async function finish() {
     const earned = `+${reward.xp} XP e ${reward.coins} moedas`;
-    await complete(breakSeconds);
-    setMessage(`Ciclo concluído! ${earned}, a confirmar pelo servidor.`);
+    const pause = await advanceCycle(settings ?? { preset, focusMinutes: 25, breakMinutes: 5 });
+    setBreakTotal(pause.seconds);
+    await complete(pause.seconds);
+    setMessage(pause.long
+      ? `Ciclo concluído! ${earned}, a confirmar. Foram ${pause.cyclesBeforeLong} ciclos seguidos: pausa longa de ${pause.seconds / 60} minutos.`
+      : `Ciclo concluído! ${earned}, a confirmar pelo servidor.`);
     celebrate('cheer', { message: `Ciclo de foco fechado! ${earned}, a confirmar.` });
     await reload();
   }
@@ -115,6 +132,11 @@ export default function FocusScreen() {
   // Tela calma: fundo liso, sem cenário, sem cards competindo com o relógio.
   return <Screen edges={['top', 'left', 'right']}>
     <ScreenHeader title="Foco" subtitle={running ? undefined : `${species.name} acompanha seus ciclos`} />
+    <View style={styles.todayRow} accessible accessibilityLabel={`Hoje: ${data?.today.sessions ?? 0} ciclos concluídos e ${data?.today.xp ?? 0} XP de foco${cycle ? `. Ciclo ${cycle.current} de ${cycle.total} até a pausa longa` : ''}`}>
+      <View style={styles.todayStat}><Text style={styles.todayValue}>{data?.today.sessions ?? 0}</Text><Text style={styles.todayLabel}>ciclos hoje</Text></View>
+      <View style={styles.todayStat}><Text style={styles.todayValue}>{data?.today.xp ?? 0}</Text><Text style={styles.todayLabel}>XP de foco hoje</Text></View>
+      {cycle ? <View style={styles.todayStat}><Text style={styles.todayValue}>{cycle.current}/{cycle.total}</Text><Text style={styles.todayLabel}>até a pausa longa</Text></View> : null}
+    </View>
 
     <View style={styles.timerArea}>
       {data?.pet ? <PetSprite species={speciesById(data.pet.speciesId).id} state={petState} height={running ? 104 : 120} /> : null}
@@ -141,11 +163,14 @@ export default function FocusScreen() {
       </Text>
     </View>
 
+    {interrupted ? <Text style={styles.warning} accessibilityLiveRegion="assertive">{interrupted}</Text> : null}
+
     {breaking ? <Button label="Pular pausa" variant="secondary" onPress={() => void endBreak()} />
       : !session ? <>
-        <Button label="Iniciar foco" icon="play" onPress={() => void begin()} />
+        <Button label={focusMode ? 'Iniciar no modo foco' : 'Iniciar foco'} icon="play" onPress={() => void begin()} />
         <View style={styles.settings}>
-          <ChipGroup label="Ritmo" options={presetOptions} value={preset} onChange={choosePreset} />
+          <ChipGroup label="Modo" options={presetOptions} value={preset} onChange={choosePreset} />
+          {preset !== 'custom' ? <Text style={styles.hint}>{focusPresets[preset].description}</Text> : null}
           {preset === 'custom' ? <View style={styles.customRow}>
             <View style={styles.customField}>
               <TextField
@@ -176,12 +201,30 @@ export default function FocusScreen() {
             value={taskId}
             onChange={setTaskId}
           /> : null}
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <Text style={styles.switchLabel}>Modo foco (anti-distração)</Text>
+              <Text style={styles.hint}>Tela cheia e sempre acesa. Se você sair do app por mais de 1 minuto (inclusive bloqueando a tela), o ciclo é interrompido e não vale XP.</Text>
+            </View>
+            <Switch
+              accessibilityLabel="Modo foco"
+              accessibilityHint="Tela cheia; sair do app por mais de 1 minuto interrompe o ciclo."
+              value={focusMode}
+              onValueChange={setFocusModeChoice}
+              trackColor={{ false: colors.borderStrong, true: colors.primary }}
+              thumbColor={colors.surface}
+              ios_backgroundColor={colors.borderStrong}
+            />
+          </View>
         </View>
       </> : finished ? <Button label="Registrar ciclo" icon="checkmark" onPress={() => void finish()} />
-        : <View style={styles.controls}>
-          <View style={styles.control}><Button label={session.status === 'paused' ? 'Retomar' : 'Pausar'} icon={session.status === 'paused' ? 'play' : 'pause'} variant="secondary" onPress={() => void (session.status === 'paused' ? resume() : pause())} /></View>
-          <View style={styles.control}><Button label="Cancelar" variant="ghost" onPress={() => void cancel()} /></View>
-        </View>}
+        : <>
+          <View style={styles.controls}>
+            <View style={styles.control}><Button label={session.status === 'paused' ? 'Retomar' : 'Pausar'} icon={session.status === 'paused' ? 'play' : 'pause'} variant="secondary" onPress={() => void (session.status === 'paused' ? resume() : pause())} /></View>
+            <View style={styles.control}><Button label="Cancelar" variant="ghost" onPress={() => void cancel()} /></View>
+          </View>
+          <Button label={guarded ? 'Voltar ao modo foco' : 'Ativar modo foco'} icon="eye-off-outline" variant="tertiary" onPress={() => void openFocusMode()} />
+        </>}
 
     {message ? <Text style={styles.message} accessibilityLiveRegion="polite">{message}</Text> : null}
 
@@ -193,6 +236,10 @@ export default function FocusScreen() {
 }
 
 const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  todayRow: { flexDirection: 'row', gap: spacing.sm },
+  todayStat: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
+  todayValue: { ...typography.numeric, fontSize: 18, lineHeight: 24, color: colors.text },
+  todayLabel: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
   timerArea: { alignItems: 'stretch', gap: spacing.md, paddingVertical: spacing.lg },
   phase: { alignSelf: 'center', paddingHorizontal: spacing.ms, paddingVertical: spacing.xs, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
   phaseRest: { backgroundColor: colors.successSoft },
@@ -200,12 +247,17 @@ const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   phaseTextRest: { color: colors.onSuccessSoft },
   timer: { ...typography.timer, color: colors.text, textAlign: 'center' },
   caption: { ...typography.bodySm, color: colors.textSecondary, textAlign: 'center' },
+  hint: { ...typography.bodySm, color: colors.textSecondary },
   settings: { gap: spacing.md, marginTop: spacing.sm },
   customRow: { flexDirection: 'row', gap: spacing.md },
   customField: { flex: 1 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  switchText: { flex: 1, gap: spacing.xs },
+  switchLabel: { ...typography.label, color: colors.text },
   controls: { flexDirection: 'row', gap: spacing.sm },
   control: { flex: 1 },
   message: { ...typography.bodySm, color: colors.success, textAlign: 'center' },
+  warning: { ...typography.bodySm, color: colors.danger, textAlign: 'center' },
   footer: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, marginTop: spacing.sm },
   footerText: { ...typography.caption, color: colors.textSecondary, flex: 1 },
 });

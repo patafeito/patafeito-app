@@ -40,6 +40,14 @@ const migrations = [
    ALTER TABLE local_tasks ADD COLUMN recurrence_day INTEGER;
    ALTER TABLE local_tasks ADD COLUMN series_id TEXT;
    CREATE INDEX IF NOT EXISTS local_tasks_series_idx ON local_tasks(series_id, due_at);`,
+
+  `ALTER TABLE local_tasks ADD COLUMN category TEXT;
+   ALTER TABLE local_tasks ADD COLUMN estimated_minutes INTEGER;
+   ALTER TABLE local_tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'normal';
+   ALTER TABLE local_tasks ADD COLUMN created_at TEXT;
+   UPDATE local_tasks SET created_at = updated_at WHERE created_at IS NULL;`,
+
+  `ALTER TABLE local_focus_sessions ADD COLUMN mode TEXT;`,
 ];
 
 export async function migrate(database: SQLite.SQLiteDatabase) {

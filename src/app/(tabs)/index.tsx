@@ -6,9 +6,11 @@ import { loadAchievements } from '../../features/achievements/application/load-a
 import { useSession } from '../../features/auth/application/session-context';
 import { buildRecommendation } from '../../features/home/domain/recommendation';
 import { NotificationPrompt } from '../../features/notifications/components/NotificationPrompt';
+import { unreadCount } from '../../features/notifications/infrastructure/feed-repository';
 import { speciesById } from '../../features/onboarding/domain/species';
 import { usePetReaction } from '../../features/pet/application/pet-mood';
 import { PetStage } from '../../features/pet/components/PetStage';
+import { xpEarnedToday } from '../../features/pet/domain/emotion';
 import { loadLocalPet } from '../../features/pet/infrastructure/local-pet-repository';
 import { cachedBalance } from '../../features/rewards/infrastructure/balance-repository';
 import { hasFailedSendAttempt, pendingOperationCount } from '../../features/sync/infrastructure/sync-repository';
@@ -34,18 +36,21 @@ import { radius, spacing, typography } from '../../shared/theme/tokens';
 
 async function loadHome() {
   if (await ensureRecurringOccurrences()) syncInBackground();
-  const [pet, tasks, completionDates, pendingOperations, sendFailed, boosts, backgroundSku, balance, achievements] = await Promise.all([
-    loadLocalPet(), listLocalTasks(), listCompletionDates(), pendingOperationCount(), hasFailedSendAttempt(), cachedBoosts(), equippedBackgroundSku(), cachedBalance(), loadAchievements(),
+  const [pet, tasks, completionDates, pendingOperations, sendFailed, boosts, backgroundSku, balance, achievements, unread] = await Promise.all([
+    loadLocalPet(), listLocalTasks(), listCompletionDates(), pendingOperationCount(), hasFailedSendAttempt(), cachedBoosts(), equippedBackgroundSku(), cachedBalance(), loadAchievements(), unreadCount(),
   ]);
   return {
     pet,
     todayTasks: tasks.filter((task) => task.status === 'pending' && isForToday(task)).slice(0, 4),
     finishedToday: tasks.some((task) => !!task.completedAt && new Date(task.completedAt).toDateString() === new Date().toDateString()),
     pendingTasks: tasks.filter((task) => task.status === 'pending'),
+    dailyXp: xpEarnedToday(tasks),
+    unread,
     streak: currentStreak(completionDates, new Date(), boosts.protectedDates),
     backgroundSku,
     pendingOperations,
-    coins: balance?.coins ?? 0,
+    // Saldo confirmado pelo servidor mais as moedas de conclusões ainda na fila (offline ou enviando).
+    coins: (balance?.coins ?? 0) + tasks.reduce((total, task) => total + (task.pendingCoins ?? 0), 0),
     achievements,
     // Com rede, o XP é confirmado em instantes; o aviso só aparece quando o envio falhou.
     pendingXp: sendFailed ? tasks.reduce((total, task) => total + (task.pendingXp ?? 0), 0) : 0,
@@ -103,15 +108,28 @@ export default function HomeScreen() {
     <ScreenHeader
       title={`${greetingFor(new Date())}${user ? `, ${user.displayName.split(' ')[0]}` : ''}!`}
       subtitle={new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-      trailing={<IconButton icon="person-outline" label="Abrir perfil" onPress={() => router.push('/profile')} />}
+      trailing={<View style={styles.headerActions}>
+        <View>
+          <IconButton icon="notifications-outline" label={data?.unread ? `Notificações, ${data.unread} não lidas` : 'Notificações'} onPress={() => router.push('/notifications')} />
+          {data?.unread ? <View style={styles.badge} pointerEvents="none"><Text style={styles.badgeText}>{data.unread > 9 ? '9+' : data.unread}</Text></View> : null}
+        </View>
+        <IconButton icon="person-outline" label="Abrir perfil" onPress={() => router.push('/profile')} />
+      </View>}
     />
     <View style={styles.stats}>
       <StatPill image={coinIcon} value={data?.coins ?? 0} tone="reward" accessibilityLabel={`${data?.coins ?? 0} moedas. Abrir loja`} onPress={() => router.push('/shop')} />
       <StatPill icon="flame" value={`${data?.streak ?? 0} ${data?.streak === 1 ? 'dia' : 'dias'}`} tone="streak" accessibilityLabel={`Sequência de ${data?.streak ?? 0} dias`} />
     </View>
 
-    {pet ? <PetStage pet={pet} streak={data?.streak ?? 0} pendingXp={data?.pendingXp} backgroundSku={data?.backgroundSku} aspectRatio={1.45} showStats={false} />
+    {pet ? <PetStage pet={pet} streak={data?.streak ?? 0} pendingXp={data?.pendingXp} backgroundSku={data?.backgroundSku} aspectRatio={1.45} dailyXp={data?.dailyXp} onPampered={() => void reload()} />
       : <Card><Text style={styles.muted}>Seu pato aparece aqui assim que for criado.</Text></Card>}
+
+    <View style={styles.shortcuts}>
+      <Shortcut icon="add-circle" label="Nova tarefa" onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { new: '1' } })} />
+      <Shortcut icon="timer" label="Foco" onPress={() => router.push('/(tabs)/focus')} />
+      <Shortcut icon="list" label="Tarefas" onPress={() => router.push('/(tabs)/tasks')} />
+      <Shortcut icon="people" label="Amigos" onPress={() => router.push('/friends')} />
+    </View>
 
     {pet ? <NotificationPrompt petName={pet.name} /> : null}
 
@@ -122,7 +140,7 @@ export default function HomeScreen() {
       <Button label={recommendation.action.label} onPress={() => router.push(recommendation.action.href)} />
     </Card>
 
-    <SectionHeader title="Hoje" actionLabel="Ver todas" onAction={() => router.push('/(tabs)/tasks')} />
+    <SectionHeader title="Para hoje" actionLabel="Ver todas" onAction={() => router.push('/(tabs)/tasks')} />
     {shownTasks.length ? <View style={styles.list}>
       {shownTasks.map((task: Task) => {
         const isLeaving = leaving.some((item) => item.task.id === task.id);
@@ -155,8 +173,24 @@ export default function HomeScreen() {
   </Screen>;
 }
 
+/** Atalho da Home (Tela 3): ícone e rótulo, sempre os dois, para não depender só do ícone. */
+function Shortcut({ icon, label, onPress }: { icon: 'add-circle' | 'timer' | 'list' | 'stats-chart' | 'people'; label: string; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.rewardsPressed]}>
+    <Ionicons name={icon} size={22} color={colors.primary} />
+    <Text style={styles.shortcutLabel} numberOfLines={1}>{label}</Text>
+  </Pressable>;
+}
+
 const makeStyles = ({ colors }: Theme) => StyleSheet.create({
+  shortcuts: { flexDirection: 'row', gap: spacing.sm },
+  shortcut: { flex: 1, alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.ms, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  shortcutLabel: { ...typography.caption, color: colors.text },
   stats: { flexDirection: 'row', gap: spacing.sm, marginTop: -spacing.xs },
+  headerActions: { flexDirection: 'row', gap: spacing.sm },
+  badge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.danger },
+  badgeText: { ...typography.caption, fontSize: 11, lineHeight: 14, color: colors.onPrimary },
   eyebrow: { ...typography.caption, color: colors.onPrimarySoft, textTransform: 'uppercase', letterSpacing: 0.8 },
   cardTitle: { ...typography.heading, color: colors.text },
   body: { ...typography.body, color: colors.text },

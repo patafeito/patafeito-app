@@ -56,10 +56,16 @@ export function spriteAspectRatio(species: SpeciesId) {
   return width / height;
 }
 
+/** Abaixo disto o status está ruim e o pato fica cabisbaixo (mesmo limite de `LOW_STAT_THRESHOLD` da API). */
+export const LOW_STAT = 30;
+
+/**
+ * Pose de repouso do pato. Qualquer status ruim (fome, energia ou felicidade) deixa o pato
+ * cansado; a pose de comer fica só para a reação de quando ele é alimentado.
+ */
 export function moodFor(pet: Pick<Pet, 'hunger' | 'energy' | 'happiness'> | undefined): PetVisualState {
   if (!pet) return 'idle';
-  if (pet.hunger <= 30) return 'eating';
-  if (pet.energy <= 30) return 'tired';
+  if (Math.min(pet.hunger, pet.energy, pet.happiness) <= LOW_STAT) return 'tired';
   if (pet.happiness >= 80) return 'happy';
   return 'idle';
 }

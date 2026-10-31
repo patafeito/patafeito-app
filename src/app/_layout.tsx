@@ -46,8 +46,16 @@ function AppStack() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="switch-pet" options={{ title: 'Trocar de pato' }} />
       <Stack.Screen name="shop" options={{ title: 'Loja' }} />
+      <Stack.Screen name="customize" options={{ title: 'Personalizar' }} />
       <Stack.Screen name="profile" options={{ title: 'Perfil' }} />
       <Stack.Screen name="achievements" options={{ title: 'Conquistas' }} />
+      <Stack.Screen name="friends" options={{ title: 'Amigos' }} />
+      <Stack.Screen name="friend/[id]" options={{ title: 'Perfil' }} />
+      <Stack.Screen name="history" options={{ title: 'Histórico' }} />
+      <Stack.Screen name="reports" options={{ title: 'Relatórios' }} />
+      <Stack.Screen name="privacy" options={{ title: 'Privacidade e dados' }} />
+      <Stack.Screen name="notifications" options={{ title: 'Notificações' }} />
+      <Stack.Screen name="focus-mode" options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }} />
     </Stack>
     <NoticeHost />
   </SessionProvider>;

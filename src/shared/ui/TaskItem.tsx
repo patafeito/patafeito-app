@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { recurrenceLabel } from '../../features/tasks/domain/recurrence';
-import { difficultyLabel, estimatedReward, isOverdue, type Task } from '../../features/tasks/domain/task';
+import { categoryLabel, difficultyLabel, formatEstimate, isOverdue, rewardFor, type Task } from '../../features/tasks/domain/task';
 import { useTheme, useThemedStyles, type Theme } from '../theme/ThemeProvider';
 import { radius, spacing, typography } from '../theme/tokens';
 import { useReducedMotion } from '../hooks/use-reduced-motion';
@@ -45,10 +45,11 @@ export function TaskItem({ task, onPress, onLongPress }: TaskItemProps) {
     wasCompleted.current = completed;
   }, [completed, pop, reducedMotion]);
 
-  const reward = estimatedReward[task.difficulty];
+  const reward = rewardFor(task);
+  const special = task.kind === 'special';
   return <Pressable
     accessibilityRole={onPress ? 'button' : undefined}
-    accessibilityLabel={completed ? `${task.title}, concluída` : `${task.title}, vale ${reward.xp} XP`}
+    accessibilityLabel={completed ? `${task.title}, concluída` : special ? `${task.title}, tarefa especial` : `${task.title}, vale ${reward.xp} XP`}
     accessibilityHint={onPress ? `${completed ? 'Toque para desmarcar.' : 'Toque para concluir.'}${onLongPress ? ' Toque e segure para editar ou excluir.' : ''}` : undefined}
     disabled={!onPress}
     onPress={() => onPress?.(task)}
@@ -61,14 +62,17 @@ export function TaskItem({ task, onPress, onLongPress }: TaskItemProps) {
     <View style={styles.content}>
       <Text numberOfLines={2} style={[styles.title, completed && styles.completedTitle]}>{task.title}</Text>
       <View style={styles.badges}>
+        {special ? <Badge tone="primary">★ Especial</Badge> : null}
         <Badge tone={difficultyTone[task.difficulty]}>{difficultyLabel[task.difficulty]}</Badge>
+        {task.category ? <Badge tone="neutral">{categoryLabel[task.category]}</Badge> : null}
+        {task.estimatedMinutes ? <Badge tone="neutral">{formatEstimate(task.estimatedMinutes)}</Badge> : null}
         {task.dueAt ? <Badge tone={overdue ? 'danger' : 'neutral'}>{overdue ? `Venceu ${dueLabel(task.dueAt)}` : dueLabel(task.dueAt)}</Badge> : null}
         {task.recurrence ? <Badge tone="neutral">{recurrenceLabel({ recurrence: task.recurrence, recurrenceDay: task.recurrenceDay ?? null })}</Badge> : null}
         {task.pendingXp ? <Badge tone="experience">+{task.pendingXp} XP a confirmar</Badge> : null}
       </View>
     </View>
-    {!completed ? <Text style={styles.xp}>+{reward.xp}</Text> : null}
-    <RewardBurst trigger={rewardKey} xp={reward.xp} coins={reward.coins} />
+    {!completed && !special ? <Text style={styles.xp}>+{reward.xp}</Text> : null}
+    {special ? null : <RewardBurst trigger={rewardKey} xp={reward.xp} coins={reward.coins} />}
   </Pressable>;
 }
 

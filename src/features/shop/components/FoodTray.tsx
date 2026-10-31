@@ -8,10 +8,15 @@ import { celebrate } from '../../pet/application/pet-mood';
 import { itemImage, type InventoryRow, type ShopItem } from '../domain/catalog';
 import { consumeItem } from '../infrastructure/shop-repository';
 
-type FoodTrayProps = { foods: { item: ShopItem; row: InventoryRow }[]; onFed: () => void };
+type FoodTrayProps = {
+  foods: { item: ShopItem; row: InventoryRow }[];
+  onFed: () => void;
+  /** `food` alimenta (Alimentar); `energy` recarrega a energia (Curar). */
+  kind?: 'food' | 'energy';
+};
 
-/** Comidas da mochila, prontas para dar ao pato com um toque. */
-export function FoodTray({ foods, onFed }: FoodTrayProps) {
+/** Itens da mochila, prontos para dar ao pato com um toque: comidas (Alimentar) ou energia (Curar). */
+export function FoodTray({ foods, onFed, kind = 'food' }: FoodTrayProps) {
   const styles = useThemedStyles(makeStyles);
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<string>();
@@ -20,7 +25,8 @@ export function FoodTray({ foods, onFed }: FoodTrayProps) {
     setBusy(item.id);
     try {
       await consumeItem(item.id);
-      celebrate('eating', { message: 'Nhac! Que delícia.' });
+      if (kind === 'food') celebrate('eating', { message: 'Nhac! Que delícia.' });
+      else celebrate('happy', { message: 'Ufa, energia lá em cima!' });
       setMessage(undefined);
       onFed();
     } catch (error) {
@@ -31,7 +37,7 @@ export function FoodTray({ foods, onFed }: FoodTrayProps) {
     }
   }
 
-  if (!foods.length) return <Text style={styles.muted}>Sem comida na mochila. Compre na loja.</Text>;
+  if (!foods.length) return <Text style={styles.muted}>{kind === 'food' ? 'Sem comida na mochila. Compre na loja.' : 'Sem itens de energia na mochila. O Café energético está na loja.'}</Text>;
 
   return <View style={styles.container}>
     <View style={styles.row}>
@@ -40,7 +46,7 @@ export function FoodTray({ foods, onFed }: FoodTrayProps) {
         return <Pressable
           key={item.id}
           accessibilityRole="button"
-          accessibilityLabel={`Dar ${item.name} ao pato, ${row.quantity} na mochila`}
+          accessibilityLabel={`${kind === 'food' ? 'Dar' : 'Usar'} ${item.name}, ${row.quantity} na mochila`}
           disabled={busy !== undefined}
           onPress={() => void feed(item)}
           style={({ pressed }) => [styles.food, pressed && styles.pressed, busy === item.id && styles.busy]}

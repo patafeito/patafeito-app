@@ -4,7 +4,8 @@ import { radius, spacing, typography } from '../theme/tokens';
 
 type ChipGroupProps<T extends string> = {
   options: { value: T; label: string }[];
-  value: T;
+  /** Sem valor, nenhuma opção aparece marcada (escolha obrigatória ainda não feita). */
+  value: T | undefined;
   onChange: (value: T) => void;
   label?: string;
   /** `segmented` ocupa a largura toda, para alternar visões (Loja/Mochila, Pendentes/Concluídas). */

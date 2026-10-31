@@ -59,3 +59,25 @@ export async function replaceScheduledNotifications(planned: PlannedNotification
     });
   }
 }
+
+/** Fora do prefixo de propósito: replanejar os avisos não pode apagar o lembrete do modo foco. */
+const focusNudgeId = 'focus-nudge';
+
+/** Lembrete para voltar ao app logo depois de sair durante o modo foco. */
+export async function scheduleFocusNudge(seconds: number) {
+  if (!supported) return;
+  try {
+    await Notifications.scheduleNotificationAsync({
+      identifier: focusNudgeId,
+      content: { title: 'Volte ao foco!', body: 'Seu ciclo continua. Se ficar mais de 1 minuto fora, ele é interrompido e não vale XP.', sound: 'default' },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, channelId: 'focus' },
+    });
+  } catch {
+    // Sem permissão de notificação, o modo foco segue valendo; só não há o lembrete.
+  }
+}
+
+export async function cancelFocusNudge() {
+  if (!supported) return;
+  await Notifications.cancelScheduledNotificationAsync(focusNudgeId).catch(() => undefined);
+}

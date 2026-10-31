@@ -34,10 +34,17 @@ async function applyResult(operation: QueuedOperation, result: PushResult) {
       showNotice(`“${title ?? 'A tarefa'}” continua concluída. ${result.reason ?? 'O servidor não aceitou desmarcá-la.'}`, 'warning');
     }
   }
-  if (operation.type === 'task.create' && operation.resourceId && !accepted) await discardLocalTask(operation.resourceId);
+  if (operation.type === 'task.create' && operation.resourceId && !accepted) {
+    await discardLocalTask(operation.resourceId);
+    // Cota de especiais esgotada em outro aparelho: a tarefa some, então o usuário precisa saber por quê.
+    if (result.code === 'SPECIAL_LIMIT_REACHED') showNotice(result.reason ?? 'Limite semanal de tarefas especiais atingido.', 'warning');
+  }
   if (operation.type === 'focus.complete' && operation.resourceId) await markFocusSessionSynced(operation.resourceId, accepted);
-  // A refeição já foi aplicada no aparelho: se o servidor recusou, volta ao pet e ao saldo reais.
-  if (operation.type === 'pet.feed' && !accepted) await Promise.all([fetchPet(), refreshBalance()]).catch(() => undefined);
+  // O cuidado já foi aplicado no aparelho: se o servidor recusou, volta ao pet e ao saldo reais.
+  if ((operation.type === 'pet.feed' || operation.type === 'pet.interact') && !accepted) {
+    await Promise.all([fetchPet(), refreshBalance()]).catch(() => undefined);
+    if (operation.type === 'pet.interact') showNotice(`O cuidado com o pato foi desfeito. ${result.reason ?? 'O servidor não aceitou.'}`, 'warning');
+  }
   if (accepted) await removeOperation(operation.opId);
   else await markOperation(operation, result.status === 'conflict' ? 'conflict' : 'rejected', result);
 }
@@ -75,8 +82,9 @@ export async function synchronize() {
   try {
     await sendPush();
     await pullAll();
-    // Catálogo e poderes não passam pelo log de mudanças: são relidos a cada sincronização.
-    await Promise.all([refreshCatalog(), refreshBoosts()]).catch(() => undefined);
+    // Catálogo, poderes e saldo não passam pelo log de mudanças: são relidos a cada sincronização.
+    // Sem o saldo aqui, Início e Pato mostrariam as moedas de antes das conclusões enviadas.
+    await Promise.all([refreshCatalog(), refreshBoosts(), refreshBalance()]).catch(() => undefined);
   } catch (error) {
     await retryDeferredOperations();
     throw error;

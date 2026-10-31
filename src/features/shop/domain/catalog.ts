@@ -1,6 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 
 export type ShopCategory = 'food' | 'power' | 'background';
+export type ShopFilter = 'all' | ShopCategory;
 export type ItemEffect =
   | { type: 'stats'; hunger?: number; energy?: number; happiness?: number }
   | { type: 'double_xp'; hours: number }
@@ -19,13 +20,24 @@ export type ShopItem = {
   priceCoins: number;
   consumable: boolean;
   effect: ItemEffect;
+  /** RN12: nível do pet para poder comprar. Catálogos antigos em cache não têm o campo. */
+  minLevel?: number;
 };
+
+export type ItemStatus = 'owned' | 'available' | 'locked';
+
+/** Estado do item na loja (Tela 9): possuído, disponível para compra ou bloqueado por nível. */
+export function itemStatus(item: ShopItem, petLevel: number, ownedNonConsumable: boolean): ItemStatus {
+  if (ownedNonConsumable) return 'owned';
+  return petLevel < (item.minLevel ?? 1) ? 'locked' : 'available';
+}
 
 export type InventoryRow = { id: string; itemId: string; equipped: boolean; quantity: number; acquiredAt: string };
 export type ActiveBoost = { effect: string; expiresAt: string | null; usesLeft: number | null };
 export type Boosts = { active: ActiveBoost[]; protectedDates: string[] };
 
-export const categories: { value: ShopCategory; label: string }[] = [
+export const categories: { value: ShopFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
   { value: 'food', label: 'Comidas' },
   { value: 'power', label: 'Poderes' },
   { value: 'background', label: 'Cenários' },

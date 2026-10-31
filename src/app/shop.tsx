@@ -3,7 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { celebrate } from '../features/pet/application/pet-mood';
 import { cachedBalance, refreshBalance } from '../features/rewards/infrastructure/balance-repository';
 import { CoinAmount, ShopItemCard } from '../features/shop/components/ShopItemCard';
-import { boostLabel, categories, coinStackIcon, isShowable, itemImage, localDateKey, type ShopCategory, type ShopItem } from '../features/shop/domain/catalog';
+import { boostLabel, categories, coinStackIcon, isShowable, itemImage, itemStatus, localDateKey, type ShopFilter, type ShopItem } from '../features/shop/domain/catalog';
+import { loadLocalPet } from '../features/pet/infrastructure/local-pet-repository';
+import { levelForXp } from '../features/pet/domain/progression';
 import {
   cachedBoosts, cachedCatalog, listLocalInventory, purchase, refreshBoosts, refreshCatalog, refreshInventory, setEquipped, consumeItem,
 } from '../features/shop/infrastructure/shop-repository';
@@ -20,8 +22,8 @@ import { radius, spacing, typography } from '../shared/theme/tokens';
 type ShopView = 'shop' | 'bag';
 
 async function loadShop() {
-  const [catalog, inventory, boosts, balance] = await Promise.all([cachedCatalog(), listLocalInventory(), cachedBoosts(), cachedBalance()]);
-  return { catalog: catalog.filter(isShowable), inventory, boosts, coins: balance?.coins ?? 0 };
+  const [catalog, inventory, boosts, balance, pet] = await Promise.all([cachedCatalog(), listLocalInventory(), cachedBoosts(), cachedBalance(), loadLocalPet()]);
+  return { catalog: catalog.filter(isShowable), inventory, boosts, coins: balance?.coins ?? 0, petLevel: pet ? levelForXp(pet.xpTotal) : 1 };
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -33,7 +35,7 @@ export default function ShopScreen() {
   const styles = useThemedStyles(makeStyles);
   const { data, reload } = useLocalData(loadShop);
   const [view, setView] = useState<ShopView>('shop');
-  const [category, setCategory] = useState<ShopCategory>('food');
+  const [category, setCategory] = useState<ShopFilter>('all');
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<string>();
   const { confirm, dialog } = useConfirm();
@@ -46,7 +48,7 @@ export default function ShopScreen() {
   }, [reload]);
 
   const owned = new Map((data?.inventory ?? []).map((row) => [row.itemId, row]));
-  const visible = (data?.catalog ?? []).filter((item) => item.slot === category);
+  const visible = (data?.catalog ?? []).filter((item) => category === 'all' || item.slot === category);
   const bag = visible.filter((item) => (owned.get(item.id)?.quantity ?? 0) > 0);
 
   async function run(itemId: string, action: () => Promise<string | void>, fallback: string) {
@@ -123,14 +125,17 @@ export default function ShopScreen() {
     {view === 'shop' ? <View style={styles.grid}>
       {visible.map((item) => {
         const ownedScene = !item.consumable && owned.has(item.id);
+        const status = itemStatus(item, data?.petLevel ?? 1, ownedScene);
+        const short = (data?.coins ?? 0) < item.priceCoins;
         return <ShopItemCard
           key={item.id}
           item={item}
           price={item.priceCoins}
           quantity={item.consumable ? owned.get(item.id)?.quantity ?? 0 : undefined}
-          actionLabel={ownedScene ? 'Na mochila' : (data?.coins ?? 0) < item.priceCoins ? 'Faltam moedas' : 'Comprar'}
-          unaffordable={!ownedScene && (data?.coins ?? 0) < item.priceCoins}
-          disabled={ownedScene || busy === item.id || (data?.coins ?? 0) < item.priceCoins}
+          status={status}
+          actionLabel={status === 'owned' ? 'Na mochila' : status === 'locked' ? `Nível ${item.minLevel}` : short ? 'Faltam moedas' : 'Comprar'}
+          unaffordable={status === 'available' && short}
+          disabled={status !== 'available' || busy === item.id || short}
           onAction={() => buy(item)}
         />;
       })}

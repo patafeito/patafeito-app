@@ -4,6 +4,9 @@ import { getDatabase } from '../../../db/client';
 import { authSession } from '../../../shared/network/auth-session';
 import { synchronize } from './sync-engine';
 
+/** Com o app aberto, busca novidades do servidor (alertas das rotinas) a cada 2 minutos (RNF09). */
+const FOREGROUND_PULL_MS = 2 * 60_000;
+
 export function SyncStartup() {
   const running = useRef(false);
 
@@ -22,7 +25,8 @@ export function SyncStartup() {
 
     void run();
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void run(); });
-    return () => subscription.remove();
+    const timer = setInterval(() => { if (AppState.currentState === 'active') void run(); }, FOREGROUND_PULL_MS);
+    return () => { subscription.remove(); clearInterval(timer); };
   }, []);
 
   return null;

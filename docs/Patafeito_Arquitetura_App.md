@@ -2,7 +2,15 @@
 
 Documento técnico de arquitetura • versão 1.0 • 12/10/2026
 
-Status: arquitetura-alvo com o ciclo central do MVP implementado; o que já existe e o que falta está em “Situação em 27/10/2026”, na seção 14. Base: Roteiro do Projeto de Desenvolvimento de Solução Computacional (43 páginas).
+Status: arquitetura-alvo com o ciclo central do MVP implementado; o que já existe e o que falta está em “Situação em 27/10/2026”, na seção 14. Base: Roteiro do Projeto de Desenvolvimento de Solução Computacional (46 páginas).
+
+**Atualização 30/10/2026:** o plano das lacunas restantes está em [`../../docs/PLANO_IMPLEMENTACAO.md`](../../docs/PLANO_IMPLEMENTACAO.md). Por decisão da equipe, ficaram **fora do escopo**:
+- anexar imagem às tarefas;
+- fases de vida do pet (Filhote, Jovem, Evoluído, Lendário);
+- push via FCM;
+- chapéus.
+
+As notificações seguem locais, com `expo-notifications`, e há uma central alimentada pelo sync.
 
 Convenção: \[BASE\] = previsto no roteiro; \[PROPOSTA\] = detalhamento técnico recomendado; \[DECIDIR\] = item em aberto.
 
@@ -25,6 +33,8 @@ Convenção: \[BASE\] = previsto no roteiro; \[PROPOSTA\] = detalhamento técnic
 > Onboarding: Boas-vindas → Cadastro/Login → Escolher espécie → Nomear pet
 >
 > Main Tabs: Início \| Tarefas \| Pet \| Foco \| Perfil
+>
+> (Implementado: Início \| Tarefas \| Hábitos \| Foco \| Pato. O Perfil abre pelo botão no cabeçalho da Home.)
 >
 > Início → Tarefa rápida / Estado do pet / Próximo prazo / Recompensas
 >
@@ -231,7 +241,7 @@ Convenção: \[BASE\] = previsto no roteiro; \[PROPOSTA\] = detalhamento técnic
 
 - Definir minSdk compatível com Android 10+ e variantes dev/staging/prod; assinar builds de distribuição.
 
-- \[DECIDIR\] iOS: seção de escopo exclui iOS, mas RNF010 pede iOS 15+. Recomenda-se Android como MVP inicial até decisão formal.
+- \[DECIDIR\] iOS: seção de escopo exclui iOS, mas RNF010 pede iOS 15+. Recomenda-se Android como MVP inicial até decisão formal. **Ajuste do roteiro (30/10/2026):** a RNF010 passa a exigir só Android 10+.
 
 - CI: lint, typecheck, testes, build Android, verificação de permissões e distribuição para teste interno.
 
@@ -258,6 +268,30 @@ Convenção: \[BASE\] = previsto no roteiro; \[PROPOSTA\] = detalhamento técnic
 - **Feito:** fases 1 a 3; loja e inventário da fase 4; fila de sync com retry/backoff, idempotência por `opId` e renovação de token single-flight da fase 5; edição e reagendamento de tarefas.
 - **Feito de outro jeito:** a estrutura segue `features/<x>/{application,domain,infrastructure,components}` em vez de `viewmodels/data`. A navegação usa Expo Router em `src/app/`. As animações do pato usam quadros PNG com `Animated` (sem Lottie/Rive) e respeitam o movimento reduzido.
 - **Pendente:** relatórios (`features/reports/` vazio), amigos/social (`features/friends/` vazio), tela de notificações (os dados já sincronizam), lembretes locais/push, UI de resolução de conflitos (conflitos ficam marcados na fila e o pull traz a versão do servidor), busca e categoria de tarefas, fontes da identidade, testes automatizados, CI e variantes dev/staging/prod.
+
+**Situação em 30/10/2026:**
+
+Correções da lista acima:
+- As **notificações locais já existem**. Ficam em `features/notifications/` e cobrem fim de foco e de pausa, tarefas do dia, sequência em risco, fome, energia e felicidade do pet, além de "sentindo sua falta". O usuário define preferências por categoria.
+- O **push remoto saiu do escopo**.
+- As **fontes da identidade** já estão instaladas: Fredoka, Nunito e Pixelify Sans.
+
+Ainda falta, segundo o plano de implementação:
+- **Fase 1, tarefas:** busca, categoria, estimativa em minutos, prazo "Esta semana", dificuldade obrigatória, tarefa especial e reaproveitar tarefa.
+- **Fase 2, pet:** humor derivado, com as regras RN02, RN11 e RN13, Mimar ao tocar no pato (grátis, uma vez por hora); Alimentar e Curar com itens da mochila.
+- **Fase 3, foco:** os modos Pomodoro, Deep Work e Sprint, pausa longa, contadores do dia e modo de interface focada.
+- **Fase 4, notificações:** central de notificações com "Marcar todas" e bônus de sequência.
+- **Fase 5:** histórico e relatórios, com gráficos em `react-native-svg`.
+- **Fase 6, Home e perfil:** barras, humor, atalhos, sino e meta diária na Home; no perfil, avatar com iniciais, nível, menus, excluir conta e privacidade.
+- **Fase 7:** acessórios e bloqueio por nível.
+- **Fase 8:** social.
+- **Fase 9:** testes com `jest-expo`.
+
+Divergências que ficam e são assumidas no roteiro:
+- As espécies são Pingo, Maré e Bento, sem bônus de atributo.
+- Os atributos são Saciedade, Energia e Felicidade.
+- A navegação tem a aba Hábitos e não tem a aba Perfil.
+- As animações usam sprites PNG com `Animated`.
 
 ## 15. Critérios de pronto e dúvidas
 

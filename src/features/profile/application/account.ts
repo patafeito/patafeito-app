@@ -6,7 +6,14 @@ import type { User } from '../../auth/domain/session';
 import { synchronize } from '../../sync/application/sync-engine';
 import { pendingOperationCount } from '../../sync/infrastructure/sync-repository';
 
-export async function updateProfile(input: { displayName?: string; email?: string; currentPassword?: string }) {
+/** Busca a conta no servidor (traz o @usuário a quem entrou antes da fase social). */
+export async function refreshProfile() {
+  const user = await authorizedFetch<User>('/me');
+  await saveStoredUser(user);
+  return user;
+}
+
+export async function updateProfile(input: { displayName?: string; email?: string; handle?: string; currentPassword?: string }) {
   const user = await authorizedFetch<User>('/me', { method: 'PATCH', body: JSON.stringify(input) });
   await saveStoredUser(user);
   return user;
@@ -42,4 +49,12 @@ export async function resetProgress(currentPassword: string) {
     DELETE FROM local_profile WHERE key IN ('rewards.balance', 'focus.breakEndsAt', 'shop.boosts');
   `);
   await synchronize();
+}
+
+/**
+ * HU09 / RNF13: exclui a conta e todos os dados no servidor, de forma definitiva (LGPD).
+ * Quem chama encerra a sessão depois, o que também apaga a cópia local.
+ */
+export async function deleteAccount(currentPassword: string) {
+  await authorizedFetch('/me', { method: 'DELETE', body: JSON.stringify({ currentPassword }) });
 }

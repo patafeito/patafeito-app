@@ -6,25 +6,23 @@ import { Dialog } from '../../../shared/ui/Dialog';
 import { TextField } from '../../../shared/ui/TextField';
 import { useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
 import { spacing, typography } from '../../../shared/theme/tokens';
-import { dueAtFor, isOverdue, type DueOption, type Task, type TaskDifficulty } from '../domain/task';
+import { categoryOptions, difficultyOptions } from '../domain/options';
+import { dueAtFor, ESTIMATE_MINUTES_RANGE, isOverdue, parseEstimate, type DueOption, type Task, type TaskCategory, type TaskDifficulty } from '../domain/task';
 import type { TaskChanges } from '../infrastructure/local-task-repository';
 
 type EditDue = 'keep' | DueOption;
 
-const difficultyOptions: { value: TaskDifficulty; label: string }[] = [
-  { value: 'easy', label: 'Fácil · 10 XP' },
-  { value: 'medium', label: 'Média · 20 XP' },
-  { value: 'hard', label: 'Difícil · 40 XP' },
-];
 const dueOptions: { value: EditDue; label: string }[] = [
   { value: 'keep', label: 'Manter' },
   { value: 'none', label: 'Sem prazo' },
   { value: 'today', label: 'Hoje' },
   { value: 'tomorrow', label: 'Amanhã' },
+  { value: 'week', label: 'Esta semana' },
 ];
 const rescheduleOptions: { value: EditDue; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'tomorrow', label: 'Amanhã' },
+  { value: 'week', label: 'Esta semana' },
 ];
 
 type TaskEditorProps = {
@@ -50,6 +48,9 @@ function EditorForm({ task, onClose, onSave, onDelete }: TaskEditorProps & { tas
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
   const [difficulty, setDifficulty] = useState<TaskDifficulty>(task.difficulty);
+  const [category, setCategory] = useState<TaskCategory>(task.category ?? 'personal');
+  const [estimate, setEstimate] = useState(task.estimatedMinutes ? String(task.estimatedMinutes) : '');
+  const [estimateError, setEstimateError] = useState<string>();
   const [due, setDue] = useState<EditDue>(overdue ? 'today' : 'keep');
   const [error, setError] = useState<string>();
 
@@ -62,6 +63,10 @@ function EditorForm({ task, onClose, onSave, onDelete }: TaskEditorProps & { tas
     const text = description.trim() || null;
     if (text !== (task.description ?? null)) changes.description = text;
     if (difficulty !== task.difficulty) changes.difficulty = difficulty;
+    if (category !== (task.category ?? 'personal')) changes.category = category;
+    const minutes = parseEstimate(estimate);
+    if (minutes === undefined) return setEstimateError(`Digite de ${ESTIMATE_MINUTES_RANGE.min} a ${ESTIMATE_MINUTES_RANGE.max} minutos, ou deixe em branco.`);
+    if (minutes !== (task.estimatedMinutes ?? null)) changes.estimatedMinutes = minutes;
     if (due !== 'keep') changes.dueAt = dueAtFor(due);
     if (!Object.keys(changes).length) return onClose();
     onSave(task, changes);
@@ -78,6 +83,8 @@ function EditorForm({ task, onClose, onSave, onDelete }: TaskEditorProps & { tas
         <TextField label="Título" value={title} onChangeText={(text) => { setTitle(text); setError(undefined); }} error={error} maxLength={200} />
         <TextField label="Descrição" value={description} onChangeText={setDescription} placeholder="Opcional" multiline maxLength={2000} />
         <ChipGroup label="Dificuldade" options={difficultyOptions} value={difficulty} onChange={setDifficulty} />
+        <ChipGroup label="Categoria" options={categoryOptions} value={category} onChange={setCategory} />
+        <TextField label="Estimativa (minutos)" value={estimate} onChangeText={(text) => { setEstimate(text); setEstimateError(undefined); }} placeholder="Opcional" keyboardType="number-pad" maxLength={3} error={estimateError} />
         {task.recurrence ? null : <ChipGroup label="Prazo" options={dueOptions} value={due} onChange={setDue} />}
       </>}
     <Button label={overdue ? 'Reagendar' : 'Salvar'} onPress={save} />

@@ -1,10 +1,11 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { Badge } from '../../../shared/ui/Badge';
 import { Button } from '../../../shared/ui/Button';
 import { PixelImage } from '../../../shared/ui/PixelImage';
-import { useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
+import { useTheme, useThemedStyles, type Theme } from '../../../shared/theme/ThemeProvider';
 import { radius, spacing, typography } from '../../../shared/theme/tokens';
-import { coinIcon, itemImage, type ShopItem } from '../domain/catalog';
+import { coinIcon, itemImage, type ItemStatus, type ShopItem } from '../domain/catalog';
 
 type ShopItemCardProps = {
   item: ShopItem;
@@ -14,6 +15,8 @@ type ShopItemCardProps = {
   equipped?: boolean;
   /** Na loja, sem moedas suficientes: o preço fica em vermelho e o botão explica. */
   unaffordable?: boolean;
+  /** Na loja: Possuído, Disponível ou Bloqueado (com o nível), em texto além da cor. */
+  status?: ItemStatus;
   actionLabel: string;
   actionVariant?: 'primary' | 'secondary' | 'tertiary';
   disabled?: boolean;
@@ -29,19 +32,31 @@ export function CoinAmount({ value, size = 18, muted }: { value: number; size?: 
 }
 
 /** O item em pixel art é o protagonista; o cartão moderno organiza nome, efeito, preço e ação. */
-export function ShopItemCard({ item, price, quantity, equipped, unaffordable, actionLabel, actionVariant = 'primary', disabled, onAction }: ShopItemCardProps) {
+const statusBadge: Record<ItemStatus, { tone: 'success' | 'neutral' | 'danger'; label: (item: ShopItem) => string }> = {
+  owned: { tone: 'success', label: () => 'Possuído' },
+  available: { tone: 'neutral', label: () => 'Disponível' },
+  locked: { tone: 'danger', label: (item) => `Bloqueado · nível ${item.minLevel ?? 1}` },
+};
+
+export function ShopItemCard({ item, price, quantity, equipped, unaffordable, status, actionLabel, actionVariant = 'primary', disabled, onAction }: ShopItemCardProps) {
   const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+  const locked = status === 'locked';
   const scene = item.slot === 'background';
   const image = itemImage(item.sku);
   return <View style={[styles.card, scene && styles.sceneCard, equipped && styles.equipped]}>
-    {image ? scene
-      ? <Image source={image} style={styles.scene} resizeMode="cover" accessibilityIgnoresInvertColors />
-      : <View style={styles.stage}><PixelImage source={image} size={80} /></View>
-      : null}
+    <View style={locked && styles.lockedArt}>
+      {image ? scene
+        ? <Image source={image} style={styles.scene} resizeMode="cover" accessibilityIgnoresInvertColors />
+        : <View style={styles.stage}><PixelImage source={image} size={80} /></View>
+        : null}
+      {locked ? <View style={styles.lock}><Ionicons name="lock-closed" size={22} color={colors.text} /></View> : null}
+    </View>
     <View style={styles.header}>
       <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
       {quantity !== undefined && item.consumable ? <Badge tone="neutral">x{quantity}</Badge> : null}
       {equipped ? <Badge tone="primary">Em uso</Badge> : null}
+      {status ? <Badge tone={statusBadge[status].tone}>{statusBadge[status].label(item)}</Badge> : null}
     </View>
     <Text style={styles.description} numberOfLines={3}>{item.description}</Text>
     <View style={[styles.footer, scene && styles.sceneFooter]}>
@@ -68,6 +83,8 @@ const makeStyles = ({ colors }: Theme) => StyleSheet.create({
   sceneAction: { flexGrow: 1, maxWidth: 200 },
   action: { alignSelf: 'stretch' },
   coin: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  lockedArt: { opacity: 0.55 },
+  lock: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   coinValue: { ...typography.numeric, color: colors.rewardText },
   coinMuted: { color: colors.danger },
 });

@@ -1,6 +1,7 @@
 import { ApiError, NetworkError } from '../../../shared/network/api-client';
 import { authorizedFetch } from '../../../shared/network/authorized-fetch';
 import { celebrate } from '../../pet/application/pet-mood';
+import { rareLine } from '../../pet/domain/rare-lines';
 import type { Pet } from '../../pet/domain/pet';
 import { saveLocalPet } from '../../pet/infrastructure/local-pet-repository';
 import { refreshBalance } from '../../rewards/infrastructure/balance-repository';
@@ -48,6 +49,11 @@ export async function toggleTaskCompletion(task: Task): Promise<ToggleResult> {
 
   const reward = await completeLocalTask(task);
   syncInBackground();
+  if (task.kind === 'special') {
+    const line = rareLine();
+    celebrate('cheer', { message: line, durationMs: 5200 });
+    return { action: 'completed', message: `Momento especial! ${line}` };
+  }
   celebrate('cheer', { message: `Patafeito! +${reward.xp} XP e ${reward.coins} moedas, a confirmar.` });
   return { action: 'completed', message: `Patafeito! +${reward.xp} XP e ${reward.coins} moedas, a confirmar.` };
 }
