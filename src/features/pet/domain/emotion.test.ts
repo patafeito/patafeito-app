@@ -37,9 +37,11 @@ describe('humor (espelho da API)', () => {
 describe('mimar', () => {
   const pet: Pet = { id: 'p', speciesId: 'pingo', name: 'Pingo', level: 1, xpTotal: 0, hunger: 50, energy: 50, happiness: 97, statsUpdatedAt: now.toISOString(), version: 1 };
 
-  it('dá +5 de felicidade (limitado a 100) e marca a hora do carinho', () => {
+  it('dá felicidade conforme a dificuldade (limitado a 100) e marca a hora do carinho', () => {
     expect(petAfterPamper(pet, now)).toMatchObject({ happiness: 100, energy: 50, hunger: 50, lastPamperedAt: now.toISOString() });
-    expect(petAfterPamper({ ...pet, happiness: 60 }, now).happiness).toBe(65);
+    expect(petAfterPamper({ ...pet, happiness: 60 }, now).happiness).toBe(68);
+    expect(petAfterPamper({ ...pet, speciesId: 'bento', happiness: 60 }, now).happiness).toBe(66);
+    expect(petAfterPamper({ ...pet, speciesId: 'mare', happiness: 60 }, now).happiness).toBe(65);
   });
 
   it('conta uma vez por hora', () => {

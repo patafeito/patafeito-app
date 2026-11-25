@@ -55,8 +55,9 @@ export const tourSlides: TourSlide[] = [
     title: 'Seu pato',
     where: 'Aba Pato',
     points: [
-      'Saciedade, energia e felicidade caem com o tempo. Tarefas e foco ajudam a repor.',
-      'Toque no pato para fazer carinho: +5 de felicidade, uma vez por hora.',
+      'Saciedade, energia e felicidade caem com o tempo, no ritmo do seu pato: Pingo pede pouco cuidado, Bento um pouco mais e Maré bastante.',
+      'Tarefas e foco ajudam a repor.',
+      'Toque no pato para fazer carinho: ganha felicidade, uma vez por hora.',
       'Alimente e cure com itens da mochila. Cumprir a meta do dia (60 XP) deixa ele feliz.',
       'Tarefas vencidas e dias sem atividade deixam o pato triste. Ele sobe de nível com o seu XP.',
     ],

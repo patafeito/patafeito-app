@@ -3,10 +3,11 @@ import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { router } from 'expo-router';
 import { loadAchievements } from '../../features/achievements/application/load-achievements';
 import { speciesById } from '../../features/onboarding/domain/species';
+import { DifficultyBadge } from '../../features/pet/components/DifficultyBadge';
 import { PetIdentityCard } from '../../features/pet/components/PetIdentityCard';
 import { PetStage } from '../../features/pet/components/PetStage';
 import { xpEarnedToday } from '../../features/pet/domain/emotion';
-import { minutesUntilPamper } from '../../features/pet/domain/stats';
+import { careDifficulty, DIFFICULTY_HINT, minutesUntilPamper, pamperHappiness } from '../../features/pet/domain/stats';
 import { cachedBalance } from '../../features/rewards/infrastructure/balance-repository';
 import { loadLocalPet } from '../../features/pet/infrastructure/local-pet-repository';
 import { FoodTray } from '../../features/shop/components/FoodTray';
@@ -62,12 +63,16 @@ export default function PetScreen() {
       <Text style={styles.cardTitle}>Cuidados</Text>
       <Text style={styles.muted}>Os status caem com o tempo. Tarefas deixam o pato feliz e ciclos de foco recarregam a energia.</Text>
       <View style={styles.careHeader}>
+        <DifficultyBadge speciesId={pet.speciesId} />
+      </View>
+      <Text style={styles.muted}>{DIFFICULTY_HINT[careDifficulty(pet.speciesId)]}</Text>
+      <View style={styles.careHeader}>
         <Ionicons name="heart" size={18} color={colors.primary} />
         <Text style={styles.subTitle}>Mimar</Text>
       </View>
       <Text style={styles.muted} accessibilityLiveRegion="polite">{pamperWait
         ? `Toque no pato para fazer carinho. O próximo carinho conta em ${pamperWait} min.`
-        : 'Toque no pato para fazer carinho: +5 de felicidade, uma vez por hora.'}</Text>
+        : `Toque no pato para fazer carinho: +${pamperHappiness(pet.speciesId)} de felicidade, uma vez por hora.`}</Text>
       <View style={styles.careHeader}>
         <Ionicons name="restaurant" size={18} color={colors.primary} />
         <Text style={styles.subTitle}>Alimentar</Text>

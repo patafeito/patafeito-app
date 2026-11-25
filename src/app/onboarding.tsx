@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { speciesList, type SpeciesId } from '../features/onboarding/domain/species';
+import { DifficultyBadge } from '../features/pet/components/DifficultyBadge';
+import { careDifficulty, DIFFICULTY_HINT } from '../features/pet/domain/stats';
 import { PetSprite } from '../features/pet/components/PetSprite';
 import { createPet } from '../features/pet/infrastructure/pet-api';
 import { ApiError, NetworkError } from '../shared/network/api-client';
@@ -42,7 +44,7 @@ export default function Onboarding() {
   return <Screen edges={['left', 'right', 'bottom']}>
     <Text style={styles.eyebrow}>BEM-VINDO AO PATAFEITO</Text>
     <Text style={styles.title}>Escolha seu pato</Text>
-    <Text style={styles.body}>Todos evoluem igual. O que muda é o jeito de te acompanhar.</Text>
+    <Text style={styles.body}>Todos evoluem igual. O que muda é o jeito de te acompanhar e quanto cuidado cada um pede.</Text>
 
     {speciesList.map((item) => {
       const active = item.id === selected;
@@ -53,6 +55,8 @@ export default function Onboarding() {
             <Text style={styles.optionName}>{item.name} <Text style={styles.optionTagline}>— {item.tagline}</Text></Text>
             <Text style={styles.optionBody}>{item.personality}</Text>
             <Text style={styles.optionBody}>{item.indicatedFor}</Text>
+            <DifficultyBadge speciesId={item.id} />
+            {active ? <Text style={styles.optionBody}>{DIFFICULTY_HINT[careDifficulty(item.id)]}</Text> : null}
             <Badge tone={active ? 'primary' : 'neutral'}>{item.mission}</Badge>
           </View>
         </Card>

@@ -17,7 +17,7 @@ import { pamperPet } from '../application/pamper-pet';
 import { levelProgress } from '../domain/progression';
 import { DEFAULT_DAILY_GOAL_XP, emotionFor, emotionLabel, emotionReason, type Emotion } from '../domain/emotion';
 import { LOW_STAT, moodFor, type PetVisualState } from '../domain/pet-sprites';
-import type { PetStats } from '../domain/stats';
+import { pamperHappiness, type PetStats } from '../domain/stats';
 import { PetSprite } from './PetSprite';
 import type { Pet } from '../domain/pet';
 
@@ -101,7 +101,7 @@ export function PetStage({ pet, streak, pendingXp = 0, aspectRatio = 1.25, backg
     const pampered = await pamperPet();
     setTouch({
       state: pampered.counted ? 'cheer' : alternate === state ? (alternate === 'cheer' ? 'happy' : 'cheer') : alternate,
-      thought: pampered.counted ? 'Que carinho bom! +5 de felicidade.' : petThoughtsWhenTouched[touchCount.current % petThoughtsWhenTouched.length],
+      thought: pampered.counted ? `Que carinho bom! +${pamperHappiness(pet.speciesId)} de felicidade.` : petThoughtsWhenTouched[touchCount.current % petThoughtsWhenTouched.length],
     });
     if (pampered.counted) onPampered?.();
     clearTimeout(touchTimer.current);
@@ -112,7 +112,7 @@ export function PetStage({ pet, streak, pendingXp = 0, aspectRatio = 1.25, backg
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Fazer carinho em ${pet.name}`}
-      accessibilityHint="Mimar: +5 de felicidade, uma vez por hora. O pato reage a cada toque."
+      accessibilityHint={`Mimar: +${pamperHappiness(pet.speciesId)} de felicidade, uma vez por hora. O pato reage a cada toque.`}
       onPress={() => void greet()}
     >
       <SceneFrame scene={background} aspectRatio={aspectRatio} onHeightChange={setStageHeight}>

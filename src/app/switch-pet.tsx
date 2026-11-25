@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { speciesById, speciesList, type SpeciesId } from '../features/onboarding/domain/species';
+import { DifficultyBadge } from '../features/pet/components/DifficultyBadge';
+import { careDifficulty, DIFFICULTY_HINT } from '../features/pet/domain/stats';
 import { PetSprite } from '../features/pet/components/PetSprite';
 import { formatCompanionTime, summarizeCompanions } from '../features/pet/domain/companions';
 import { loadLocalPet } from '../features/pet/infrastructure/local-pet-repository';
@@ -72,7 +74,7 @@ export default function SwitchPetScreen() {
     </Card>
 
     <Text style={styles.title}>Escolha o novo pato</Text>
-    <Text style={styles.muted}>XP, nível, moedas e status continuam com você.</Text>
+    <Text style={styles.muted}>XP, nível, moedas e status continuam com você. A partir da troca, vale o ritmo de cuidado do novo pato.</Text>
     {options.map((item) => {
       const active = item.id === selected;
       return <Pressable key={item.id} accessibilityRole="radio" accessibilityState={{ selected: active }} onPress={() => choose(item.id)}>
@@ -81,6 +83,8 @@ export default function SwitchPetScreen() {
           <View style={styles.historyText}>
             <Text style={styles.historyName}>{item.name} <Text style={styles.muted}>— {item.tagline}</Text></Text>
             <Text style={styles.muted}>{item.personality}</Text>
+            <DifficultyBadge speciesId={item.id} />
+            {active ? <Text style={styles.muted}>{DIFFICULTY_HINT[careDifficulty(item.id)]}</Text> : null}
           </View>
         </Card>
       </Pressable>;
